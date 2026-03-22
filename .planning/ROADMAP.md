@@ -12,7 +12,7 @@ Spine is built in strict dependency order. The foundation (Docker, SQLite, scann
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Docker container, SQLite schema, and .m4b library scanner with ffprobe metadata extraction
+- [x] **Phase 1: Foundation** - Docker container, SQLite schema, and .m4b library scanner with ffprobe metadata extraction (completed 2026-03-22)
 - [ ] **Phase 2: Auth and API** - Username/password auth with sessions and all protected REST API endpoints
 - [ ] **Phase 3: App Shell and Library UI** - Frontend entry point, PWA installability, and library browse grid
 - [ ] **Phase 4: Player and Progress** - In-browser audio player with full controls and local-first progress tracking
@@ -31,12 +31,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A book with missing embedded metadata falls back to folder-level helper files (cover.jpg, metadata.json) and is still cataloged
   4. A chapter-less .m4b is cataloged as a single implicit chapter without error
   5. Cover art extracted from a .m4b is accessible as a file on disk
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 01-01-PLAN.md — Project skeleton, Docker infrastructure, SQLite schema, and types
 - [x] 01-02-PLAN.md — ffprobe metadata extraction, cover art extraction, and directory walker
-- [ ] 01-03-PLAN.md — Scanner orchestrator, fallback metadata, file watcher, and server integration
+- [x] 01-03-PLAN.md — Scanner orchestrator, fallback metadata, file watcher, and server integration
 
 ### Phase 2: Auth and API
 **Goal**: Household members can log in and access the library API with their own sessions
@@ -104,7 +104,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 2/3 | In Progress|  |
+| 1. Foundation | 3/3 | Complete   | 2026-03-22 |
 | 2. Auth and API | 0/TBD | Not started | - |
 | 3. App Shell and Library UI | 0/TBD | Not started | - |
 | 4. Player and Progress | 0/TBD | Not started | - |

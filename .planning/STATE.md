@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 01-foundation-01-02-PLAN.md
-last_updated: "2026-03-22T03:06:06.743Z"
+stopped_at: Completed 01-foundation-01-03-PLAN.md
+last_updated: "2026-03-22T03:11:35.529Z"
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
@@ -48,6 +48,7 @@ Plan: 3 of 3
 *Updated after each plan completion*
 | Phase 01-foundation P01 | 7 | 2 tasks | 11 files |
 | Phase 01-foundation P02 | 3 | 2 tasks | 8 files |
+| Phase 01-foundation P03 | 3 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -65,6 +66,9 @@ Recent decisions affecting current work:
 - [Phase 01-foundation]: normalizeTag checks exact, UPPER, and lower casing per key — handles real-world ffprobe tag inconsistency
 - [Phase 01-foundation]: extractCoverArt resolves null on ffmpeg failure — missing cover should never fail a scan
 - [Phase 01-foundation]: walkLibrary uses fs.readdirSync recursive option (Node 20+ / Bun native) — no manual recursive walk needed
+- [Phase 01-foundation]: Injectable probeFn on scanFile/scanLibrary for testability — avoids module mocking complexity
+- [Phase 01-foundation]: setInterval chosen over chokidar for watcher — Docker requires polling anyway, zero-dependency, ESM+Bun compatibility guaranteed
+- [Phase 01-foundation]: D-04 reappearance check in early-return path of scanFile — handles identical mtime+size on file recreate (e.g. empty files in tests)
 
 ### Pending Todos
 
@@ -78,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T03:06:06.742Z
-Stopped at: Completed 01-foundation-01-02-PLAN.md
+Last session: 2026-03-22T03:11:35.526Z
+Stopped at: Completed 01-foundation-01-03-PLAN.md
 Resume file: None

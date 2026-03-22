@@ -11,7 +11,7 @@
 - [x] **SCAN-02**: Backend extracts chapter information (title, start time, end time) from .m4b files via ffprobe
 - [x] **SCAN-03**: Metadata and chapters are normalized once at scan time and cached in SQLite
 - [x] **SCAN-04**: Cover art extracted from .m4b and served as image endpoint
-- [ ] **SCAN-05**: If .m4b is missing embedded metadata, scanner checks the containing folder for helper files (cover.jpg/png, metadata.json, .cue files) and uses them as fallback
+- [x] **SCAN-05**: If .m4b is missing embedded metadata, scanner checks the containing folder for helper files (cover.jpg/png, metadata.json, .cue files) and uses them as fallback
 
 ### API
 
@@ -120,7 +120,7 @@
 | SCAN-02 | Phase 1 | Complete |
 | SCAN-03 | Phase 1 | Complete |
 | SCAN-04 | Phase 1 | Complete |
-| SCAN-05 | Phase 1 | Pending |
+| SCAN-05 | Phase 1 | Complete |
 | AUTH-01 | Phase 2 | Pending |
 | AUTH-02 | Phase 2 | Pending |
 | AUTH-03 | Phase 2 | Pending |
