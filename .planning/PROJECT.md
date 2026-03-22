@@ -17,10 +17,11 @@ A household can browse their audiobook library, listen with full player controls
 - [x] Metadata and chapters normalized once at scan time, served from cache — Validated in Phase 01: Foundation
 - [x] REST API exposes library listing, book details, chapter info, and audio streaming — Validated in Phase 02: Auth and API
 - [x] Full auth system — username/password login with per-user sessions — Validated in Phase 02: Auth and API
+- [x] PWA browse view — library grid/list with cover art, title, author — Validated in Phase 03: App Shell and Library UI
+- [x] PWA installable on mobile and desktop — Validated in Phase 03: App Shell and Library UI
 
 ### Active
 - [ ] Multiple household members with separate accounts and isolated progress
-- [ ] PWA browse view — library grid/list with cover art, title, author
 - [ ] In-browser audio player with chapter navigation, +30s/-30s skip, playback speed control
 - [ ] Android lock-screen / notification controls via Media Session API
 - [ ] Progress tracking — remembers position per book per user (chapter + timestamp)
@@ -28,7 +29,6 @@ A household can browse their audiobook library, listen with full player controls
 - [ ] Optional manual progress sync to backend when online
 - [ ] Whole-book offline download via Cache Storage + IndexedDB
 - [ ] Downloaded books playable without network connection
-- [ ] PWA installable on mobile and desktop
 
 ### Out of Scope
 
@@ -67,7 +67,7 @@ A household can browse their audiobook library, listen with full player controls
 |----------|-----------|---------|
 | .m4b only | All user's books are .m4b, simplifies metadata/chapter extraction | Validated — Phase 01 |
 | bun:sqlite over better-sqlite3 | better-sqlite3 uses V8 C++ API incompatible with Bun runtime; bun:sqlite is built-in with same sync API | Phase 01 deviation |
-| Alpine.js over React/Vue | Lightweight, no build step, inspectable | — Pending |
+| Alpine.js over React/Vue | Lightweight, no build step, inspectable | Validated — Phase 03 |
 | Local-first progress | Works offline, user controls their data | — Pending |
 | Whole-book downloads | Simpler than chapter-level granularity, matches user preference | — Pending |
 | Full auth over simple profiles | Household needs real account separation | — Pending |
@@ -90,4 +90,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-22 after Phase 01 completion*
+*Last updated: 2026-03-22 after Phase 03 completion*
