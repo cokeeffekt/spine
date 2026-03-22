@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>Spine</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body x-cloak>
+
+  <!-- Session check wrapper: attempts /api/books on load; if 200, restore session -->
+  <div x-init="(async () => {
+    const res = await fetch('/api/books')
+    if (res.ok) {
+      $store.library.books = await res.json()
+      $store.auth.loggedIn = true
+      $store.app.view = 'library'
+    }
+  })()">
+
+    <!-- ========== Login View ========== -->
+    <div x-show="$store.app.view === 'login'" class="login-page">
+      <div class="login-card" x-data="{ username: '', password: '', error: '', submitting: false }">
+        <h1>Spine</h1>
+        <form @submit.prevent="(async () => {
+          error = ''
+          submitting = true
+          try {
+            const res = await fetch('/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ username, password })
+            })
+            if (res.ok) {
+              const data = await res.json()
+              $store.auth.loggedIn = true
+              $store.auth.username = username
+              $store.auth.role = data.role
+              $store.app.view = 'library'
+              await $store.library.loadBooks()
+            } else if (res.status === 401) {
+              error = 'Invalid username or password.'
+            } else {
+              error = 'Could not reach the server. Try again.'
+            }
+          } catch (e) {
+            error = 'Could not reach the server. Try again.'
+          } finally {
+            submitting = false
+          }
+        })()">
+          <div class="form-group">
+            <input
+              type="text"
+              class="form-input"
+              placeholder="Username"
+              x-model="username"
+              required
+              autocomplete="username"
+            >
+          </div>
+          <div class="form-group">
+            <input
+              type="password"
+              class="form-input"
+              placeholder="Password"
+              x-model="password"
+              required
+              autocomplete="current-password"
+            >
+          </div>
+          <button type="submit" class="btn-primary" :disabled="submitting">Log In</button>
+          <div class="login-error" x-show="error" x-text="error"></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ========== Top Navigation Bar (library + detail views) ========== -->
+    <nav class="nav-bar" x-show="$store.app.view === 'library' || $store.app.view === 'detail'">
+      <span class="nav-brand">Spine</span>
+      <div class="nav-right">
+        <span class="nav-username" x-text="$store.auth.username"></span>
+        <button class="nav-logout" @click="(async () => {
+          await fetch('/auth/logout', { method: 'POST' })
+          $store.auth.loggedIn = false
+          $store.auth.username = ''
+          $store.auth.role = ''
+          $store.app.view = 'login'
+          $store.library.books = []
+          $store.library.query = ''
+          $store.library.selectedBook = null
+        })()">Log out</button>
+      </div>
+    </nav>
+
+    <!-- ========== Library View ========== -->
+    <div x-show="$store.app.view === 'library'" class="library-container">
+
+      <!-- Search bar -->
+      <div class="search-bar">
+        <svg class="search-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/>
+        </svg>
+        <input
+          type="text"
+          class="search-input"
+          placeholder="Search by title or author…"
+          x-model="$store.library.query"
+          aria-label="Search library"
+        >
+        <button
+          class="search-clear"
+          x-show="$store.library.query"
+          @click="$store.library.query = ''"
+          aria-label="Clear search"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M4.646 4.646a.5.5 0 01.708 0L8 7.293l2.646-2.647a.5.5 0 01.708.708L8.707 8l2.647 2.646a.5.5 0 01-.708.708L8 8.707l-2.646 2.647a.5.5 0 01-.708-.708L7.293 8 4.646 5.354a.5.5 0 010-.708z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Loading skeleton -->
+      <div class="library-grid" x-show="$store.library.loading">
+        <template x-for="i in 8" :key="i">
+          <div class="skeleton-card">
+            <div class="skeleton-cover"></div>
+            <div class="skeleton-text">
+              <div class="skeleton-line"></div>
+              <div class="skeleton-line short"></div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Book grid -->
+      <div class="library-grid" x-show="!$store.library.loading">
+
+        <!-- Empty library state -->
+        <div class="empty-state" x-show="$store.library.books.length === 0 && !$store.library.query">
+          <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="8" y="6" width="32" height="36" rx="2"/>
+            <line x1="16" y1="14" x2="32" y2="14"/>
+            <line x1="16" y1="22" x2="32" y2="22"/>
+            <line x1="16" y1="30" x2="24" y2="30"/>
+          </svg>
+          <h2>Your library is empty</h2>
+          <p>Add .m4b files to your library folder and restart the scanner.</p>
+        </div>
+
+        <!-- No search results state -->
+        <div class="empty-state" x-show="$store.library.filteredBooks.length === 0 && $store.library.query">
+          <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="20" cy="20" r="14"/>
+            <line x1="30" y1="30" x2="42" y2="42"/>
+          </svg>
+          <h2>No books match</h2>
+          <p>Try a different title or author.</p>
+        </div>
+
+        <!-- Book cards -->
+        <template x-for="book in $store.library.filteredBooks" :key="book.id">
+          <div class="book-card" @click="$store.library.selectBook(book.id)" role="button" tabindex="0" @keydown.enter="$store.library.selectBook(book.id)">
+            <div class="cover-container">
+              <img
+                x-show="book.cover_url"
+                :src="book.cover_url"
+                :alt="book.title"
+                loading="lazy"
+                @error="$el.style.display='none'; $el.nextElementSibling.style.display='flex'"
+              >
+              <div class="cover-placeholder" :style="book.cover_url ? 'display:none' : ''">
+                <span x-text="book.title ? book.title.charAt(0).toUpperCase() : '?'"></span>
+              </div>
+            </div>
+            <div class="card-text">
+              <div class="card-title" x-text="book.title"></div>
+              <div class="card-author" x-text="book.author || 'Unknown Author'"></div>
+            </div>
+          </div>
+        </template>
+
+      </div>
+    </div>
+
+    <!-- ========== Book Detail View ========== -->
+    <div x-show="$store.app.view === 'detail'" class="detail-container">
+
+      <button class="back-link" @click="$store.app.view = 'library'">← Library</button>
+
+      <template x-if="$store.library.selectedBook">
+        <div>
+          <div class="detail-header">
+            <div class="detail-cover">
+              <img
+                x-show="$store.library.selectedBook.cover_url"
+                :src="$store.library.selectedBook.cover_url"
+                :alt="$store.library.selectedBook.title"
+              >
+              <div class="cover-placeholder" x-show="!$store.library.selectedBook.cover_url">
+                <span x-text="$store.library.selectedBook.title ? $store.library.selectedBook.title.charAt(0).toUpperCase() : '?'"></span>
+              </div>
+            </div>
+            <div class="detail-meta">
+              <h1 x-text="$store.library.selectedBook.title"></h1>
+              <div class="author" x-text="$store.library.selectedBook.author || 'Unknown Author'"></div>
+              <div class="narrator" x-show="$store.library.selectedBook.narrator" x-text="'Narrated by ' + ($store.library.selectedBook.narrator || '')"></div>
+              <div class="duration" x-text="formatDuration($store.library.selectedBook.duration_sec)"></div>
+            </div>
+          </div>
+
+          <div
+            class="detail-description"
+            x-show="$store.library.selectedBook.description"
+            x-text="$store.library.selectedBook.description"
+          ></div>
+
+          <button
+            class="btn-play-disabled"
+            disabled
+            title="Playback coming in a future update"
+          >Play</button>
+
+          <template x-if="$store.library.selectedBook.chapters && $store.library.selectedBook.chapters.length > 0">
+            <div>
+              <h3 class="chapter-heading">Chapters</h3>
+              <ul class="chapter-list">
+                <template x-for="(chapter, idx) in $store.library.selectedBook.chapters" :key="chapter.id">
+                  <li class="chapter-row">
+                    <span class="chapter-num" x-text="idx + 1"></span>
+                    <span class="chapter-title" x-text="chapter.title"></span>
+                    <span class="chapter-duration" x-text="formatChapterDuration(chapter.start_sec, chapter.end_sec)"></span>
+                  </li>
+                </template>
+              </ul>
+            </div>
+          </template>
+        </div>
+      </template>
+
+    </div>
+
+  </div><!-- end session-check wrapper -->
+
+  <script>
+    document.addEventListener('alpine:init', () => {
+      Alpine.store('auth', {
+        loggedIn: false,
+        username: '',
+        role: ''
+      })
+
+      Alpine.store('app', {
+        view: 'login'
+      })
+
+      Alpine.store('library', {
+        books: [],
+        query: '',
+        selectedBook: null,
+        loading: false,
+
+        async loadBooks() {
+          this.loading = true
+          try {
+            const res = await fetch('/api/books')
+            if (res.status === 401) {
+              Alpine.store('auth').loggedIn = false
+              Alpine.store('app').view = 'login'
+              return
+            }
+            this.books = await res.json()
+          } catch (e) {
+            console.error('Failed to load books:', e)
+          } finally {
+            this.loading = false
+          }
+        },
+
+        async selectBook(id) {
+          try {
+            const res = await fetch('/api/books/' + id)
+            if (res.status === 401) {
+              Alpine.store('auth').loggedIn = false
+              Alpine.store('app').view = 'login'
+              return
+            }
+            this.selectedBook = await res.json()
+            Alpine.store('app').view = 'detail'
+          } catch (e) {
+            console.error('Failed to load book:', e)
+          }
+        },
+
+        get filteredBooks() {
+          if (!this.query) return this.books
+          const q = this.query.toLowerCase()
+          return this.books.filter(b =>
+            b.title.toLowerCase().includes(q) ||
+            (b.author && b.author.toLowerCase().includes(q))
+          )
+        }
+      })
+    })
+
+    function formatDuration(sec) {
+      const h = Math.floor(sec / 3600)
+      const m = Math.floor((sec % 3600) / 60)
+      return h + 'h ' + m + 'm'
+    }
+
+    function formatChapterDuration(startSec, endSec) {
+      const dur = endSec - startSec
+      const m = Math.floor(dur / 60)
+      const s = Math.floor(dur % 60)
+      return m + ':' + (s < 10 ? '0' : '') + s
+    }
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .catch(err => console.warn('[SW] Registration failed:', err))
+      })
+    }
+  </script>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.15.8/dist/cdn.min.js"></script>
+</body>
+</html>
