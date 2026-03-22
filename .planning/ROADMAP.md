@@ -100,8 +100,8 @@ Plans:
 **Plans:** 2/2 plans complete
 
 Plans:
-- [x] 05-01-PLAN.md — TDD: extract lock-screen pure functions (metadata, position state, seekto) and default cover SVG� TDD: extract lock-screen pure functions (metadata, position state, seekto) and default cover SVG
-- [x] 05-02-PLAN.md — Wire Media Session metadata, position interval, and seekto handler into Alpine player store� Wire Media Session metadata, position interval, and seekto handler into Alpine player store
+- [x] 05-01-PLAN.md — TDD: extract lock-screen pure functions (metadata, position state, seekto) and default cover SVG
+- [x] 05-02-PLAN.md — Wire Media Session metadata, position interval, and seekto handler into Alpine player store
 
 ### Phase 6: Offline Download
 **Goal**: Users can download audiobooks and play them without a network connection, including seeking
@@ -112,11 +112,12 @@ Plans:
   2. With the device in airplane mode, a downloaded book plays from start and seeking works (no spinner, no error)
   3. Downloaded books are listed with their storage size; user can delete a download to free space
   4. The app shell and library UI load without a network connection after first use
-**Plans:** 2 plans
+**Plans:** 3 plans
 
 Plans:
-- [x] 05-01-PLAN.md — TDD: extract lock-screen pure functions (metadata, position state, seekto) and default cover SVG� TDD: extract lock-screen pure functions (metadata, position state, seekto) and default cover SVG
-- [ ] 05-02-PLAN.md — Wire Media Session metadata, position interval, and seekto handler into Alpine player store� Wire Media Session metadata, position interval, and seekto handler into Alpine player store
+- [ ] 06-01-PLAN.md — TDD: downloadDB, formatBytes, reconcileDownloads pure functions and tests
+- [ ] 06-02-PLAN.md — Service worker CacheFirst+RangeRequests, $store.downloads, download UI and progress overlay
+- [ ] 06-03-PLAN.md — Downloaded filter toggle, storage summary, offline dimming, and end-to-end verification
 
 ## Progress
 
@@ -130,4 +131,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. App Shell and Library UI | 2/2 | Complete   | 2026-03-22 |
 | 4. Player and Progress | 3/3 | Complete   | 2026-03-22 |
 | 5. Lock Screen Controls | 2/2 | Complete   | 2026-03-22 |
-| 6. Offline Download | 0/TBD | Not started | - |
+| 6. Offline Download | 0/3 | Not started | - |
