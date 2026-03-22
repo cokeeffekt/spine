@@ -32,20 +32,20 @@
 ### Player
 
 - [ ] **PLAY-01**: User can play and pause audio in the browser
-- [ ] **PLAY-02**: User can skip forward and backward 30 seconds
+- [x] **PLAY-02**: User can skip forward and backward 30 seconds
 - [ ] **PLAY-03**: User can adjust playback speed from 1.0x to 2.0x in 0.2x intervals (1.0, 1.2, 1.4, 1.6, 1.8, 2.0)
-- [ ] **PLAY-04**: User can view chapter list and jump to any chapter
+- [x] **PLAY-04**: User can view chapter list and jump to any chapter
 - [ ] **PLAY-05**: Player shows current chapter title, elapsed time, and total duration
-- [ ] **PLAY-06**: User's per-book playback speed preference is remembered across sessions
+- [x] **PLAY-06**: User's per-book playback speed preference is remembered across sessions
 - [ ] **PLAY-07**: User can set a sleep timer (5, 10, 15, 30, 60 min presets + end of chapter)
 - [ ] **PLAY-08**: Keyboard shortcuts work on desktop (spacebar pause, arrow seek, media keys)
 
 ### Progress
 
-- [ ] **PROG-01**: User's playback position is saved per book (chapter + timestamp)
+- [x] **PROG-01**: User's playback position is saved per book (chapter + timestamp)
 - [ ] **PROG-02**: Position is stored locally in IndexedDB (works offline)
 - [ ] **PROG-03**: User resumes from last saved position when reopening a book
-- [ ] **PROG-04**: Progress is isolated per user — each household member has their own position
+- [x] **PROG-04**: Progress is isolated per user — each household member has their own position
 
 ### Lock Screen
 
@@ -138,17 +138,17 @@
 | PWA-02 | Phase 3 | Complete |
 | PWA-03 | Phase 3 | Complete |
 | PLAY-01 | Phase 4 | Pending |
-| PLAY-02 | Phase 4 | Pending |
+| PLAY-02 | Phase 4 | Complete |
 | PLAY-03 | Phase 4 | Pending |
-| PLAY-04 | Phase 4 | Pending |
+| PLAY-04 | Phase 4 | Complete |
 | PLAY-05 | Phase 4 | Pending |
-| PLAY-06 | Phase 4 | Pending |
+| PLAY-06 | Phase 4 | Complete |
 | PLAY-07 | Phase 4 | Pending |
 | PLAY-08 | Phase 4 | Pending |
-| PROG-01 | Phase 4 | Pending |
+| PROG-01 | Phase 4 | Complete |
 | PROG-02 | Phase 4 | Pending |
 | PROG-03 | Phase 4 | Pending |
-| PROG-04 | Phase 4 | Pending |
+| PROG-04 | Phase 4 | Complete |
 | LOCK-01 | Phase 5 | Pending |
 | LOCK-02 | Phase 5 | Pending |
 | LOCK-03 | Phase 5 | Pending |
