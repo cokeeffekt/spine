@@ -1,0 +1,15 @@
+services:
+  spine:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ${AUDIOBOOK_DIR:-./books}:/books:rw
+      - spine-data:/data
+    environment:
+      - LIBRARY_ROOT=/books
+      - DB_PATH=/data/spine.db
+      - PORT=3000
+
+volumes:
+  spine-data:
