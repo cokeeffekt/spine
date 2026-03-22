@@ -49,9 +49,9 @@
 
 ### Lock Screen
 
-- [ ] **LOCK-01**: Android lock-screen shows book title, author, and cover art
-- [ ] **LOCK-02**: Lock-screen play/pause, skip forward/back controls work via Media Session API
-- [ ] **LOCK-03**: Lock-screen scrubber reflects current position and responds to seek
+- [x] **LOCK-01**: Android lock-screen shows book title, author, and cover art
+- [x] **LOCK-02**: Lock-screen play/pause, skip forward/back controls work via Media Session API
+- [x] **LOCK-03**: Lock-screen scrubber reflects current position and responds to seek
 
 ### Library UI
 
@@ -149,9 +149,9 @@
 | PROG-02 | Phase 4 | Complete |
 | PROG-03 | Phase 4 | Complete |
 | PROG-04 | Phase 4 | Complete |
-| LOCK-01 | Phase 5 | Pending |
-| LOCK-02 | Phase 5 | Pending |
-| LOCK-03 | Phase 5 | Pending |
+| LOCK-01 | Phase 5 | Complete |
+| LOCK-02 | Phase 5 | Complete |
+| LOCK-03 | Phase 5 | Complete |
 | OFFL-01 | Phase 6 | Pending |
 | OFFL-02 | Phase 6 | Pending |
 | OFFL-03 | Phase 6 | Pending |

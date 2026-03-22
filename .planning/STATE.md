@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 04-player-and-progress-02-PLAN.md
-last_updated: "2026-03-22T06:30:46.390Z"
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-03-22T12:52:27.437Z"
 progress:
   total_phases: 6
   completed_phases: 4
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 12
+  completed_plans: 11
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** A household can browse their audiobook library, listen with full player controls, and pick up exactly where they left off — on any device, even offline.
-**Current focus:** Phase 04 — player-and-progress
+**Current focus:** Phase 05 — lock-screen-controls
 
 ## Current Position
 
-Phase: 5
-Plan: Not started
+Phase: 05 (lock-screen-controls) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Plan: Not started
 | Phase 04-player-and-progress P00 | 8 | 1 tasks | 2 files |
 | Phase 04-player-and-progress P01 | 25 | 2 tasks | 2 files |
 | Phase 04-player-and-progress P02 | 2 | 2 tasks | 2 files |
+| Phase 05-lock-screen-controls P01 | 2 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,9 @@ Recent decisions affecting current work:
 - [Phase 04-player-and-progress]: canplay { once: true } listener ensures seek-after-load before audio stream is ready
 - [Phase 04-player-and-progress]: Used native confirm() for book-switch prompt — plan specifies acceptable per Claude's Discretion on confirmation dialog styling
 - [Phase 04-player-and-progress]: Access Alpine stores from non-Alpine context via Alpine.store('player') — used for keydown and mediaSession handlers
+- [Phase 05-lock-screen-controls]: Return plain object from buildMediaMetadata (not MediaMetadata constructor) so functions are unit-testable outside browser — caller in index.html constructs MediaMetadata from plain object fields
+- [Phase 05-lock-screen-controls]: chapterPositionState clamps position to [0, chDuration] — prevents setPositionState from receiving position > duration which throws DOMException
+- [Phase 05-lock-screen-controls]: null chapter returns null from all three lock-screen functions — no-chapter books bypass chapter-scoped Media Session logic
 
 ### Pending Todos
 
@@ -107,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T06:26:17.636Z
-Stopped at: Completed 04-player-and-progress-02-PLAN.md
+Last session: 2026-03-22T12:52:27.434Z
+Stopped at: Completed 05-01-PLAN.md
 Resume file: None
