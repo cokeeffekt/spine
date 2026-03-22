@@ -123,7 +123,115 @@ function seektoAbsolute(chapter, seekTime) {
   return chapter.start_sec + seekTime
 }
 
+/**
+ * Format a byte count as a human-readable string (KB, MB, or GB).
+ * @param {number|null|undefined} bytes
+ * @returns {string}
+ */
+function formatBytes(bytes) {
+  if (!bytes) return '0 MB'
+  if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(1) + ' GB'
+  if (bytes >= 1048576) return Math.round(bytes / 1048576) + ' MB'
+  return Math.round(bytes / 1024) + ' KB'
+}
+
+/**
+ * IndexedDB wrapper for offline download metadata.
+ * Follows the same IIFE pattern as progressDB used in index.html.
+ * DB: 'spine-downloads', store: 'downloads', keyed by bookId string.
+ * NOTE: IndexedDB is browser-only — not usable in Bun tests.
+ */
+const downloadDB = (() => {
+  const DB_NAME = 'spine-downloads'
+  const DB_VERSION = 1
+  const STORE = 'downloads'
+  let _db = null
+
+  function open() {
+    if (_db) return Promise.resolve(_db)
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION)
+      req.onupgradeneeded = (e) => e.target.result.createObjectStore(STORE)
+      req.onsuccess = (e) => { _db = e.target.result; resolve(_db) }
+      req.onerror = (e) => reject(e.target.error)
+    })
+  }
+
+  async function get(bookId) {
+    const db = await open()
+    return new Promise((resolve, reject) => {
+      const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(String(bookId))
+      req.onsuccess = (e) => resolve(e.target.result || null)
+      req.onerror = (e) => reject(e.target.error)
+    })
+  }
+
+  async function getAll() {
+    const db = await open()
+    return new Promise((resolve, reject) => {
+      const req = db.transaction(STORE, 'readonly').objectStore(STORE).getAll()
+      req.onsuccess = (e) => resolve(e.target.result || [])
+      req.onerror = (e) => reject(e.target.error)
+    })
+  }
+
+  async function getAllKeys() {
+    const db = await open()
+    return new Promise((resolve, reject) => {
+      const keys = []
+      const req = db.transaction(STORE, 'readonly').objectStore(STORE).openKeyCursor()
+      req.onsuccess = (e) => {
+        const cursor = e.target.result
+        if (cursor) { keys.push(cursor.key); cursor.continue() }
+        else resolve(keys)
+      }
+      req.onerror = (e) => reject(e.target.error)
+    })
+  }
+
+  async function save(bookId, data) {
+    const db = await open()
+    return new Promise((resolve, reject) => {
+      const val = Object.assign({ bookId: String(bookId) }, data)
+      const req = db.transaction(STORE, 'readwrite').objectStore(STORE).put(val, String(bookId))
+      req.onsuccess = () => resolve()
+      req.onerror = (e) => reject(e.target.error)
+    })
+  }
+
+  async function del(bookId) {
+    const db = await open()
+    return new Promise((resolve, reject) => {
+      const req = db.transaction(STORE, 'readwrite').objectStore(STORE).delete(String(bookId))
+      req.onsuccess = () => resolve()
+      req.onerror = (e) => reject(e.target.error)
+    })
+  }
+
+  return { open, get, getAll, getAllKeys, save, delete: del }
+})()
+
+/**
+ * Reconcile a list of downloaded bookIds against what is actually in Cache Storage.
+ * Pure function — takes injected callbacks so it is testable without browser APIs.
+ * @param {string[]} bookIds - IDs currently tracked in IndexedDB
+ * @param {(bookId: string) => boolean} cacheLookupFn - returns true if cache entry exists
+ * @param {(bookId: string) => any} deleteFn - called for each stale entry
+ * @returns {Promise<string[]>} valid bookIds (those still in cache)
+ */
+async function reconcileDownloads(bookIds, cacheLookupFn, deleteFn) {
+  const valid = []
+  for (const id of bookIds) {
+    if (cacheLookupFn(id)) {
+      valid.push(id)
+    } else {
+      await deleteFn(id)
+    }
+  }
+  return valid
+}
+
 // Export for both browser global and module systems
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { clampSkip, getCurrentChapterIdx, progressKey, formatTime, sleepTimerMs, buildMediaMetadata, chapterPositionState, seektoAbsolute }
+  module.exports = { clampSkip, getCurrentChapterIdx, progressKey, formatTime, sleepTimerMs, buildMediaMetadata, chapterPositionState, seektoAbsolute, formatBytes, downloadDB, reconcileDownloads }
 }
