@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation** - Docker container, SQLite schema, and .m4b library scanner with ffprobe metadata extraction (completed 2026-03-22)
 - [x] **Phase 2: Auth and API** - Username/password auth with sessions and all protected REST API endpoints (completed 2026-03-22)
-- [ ] **Phase 3: App Shell and Library UI** - Frontend entry point, PWA installability, and library browse grid
+- [x] **Phase 3: App Shell and Library UI** - Frontend entry point, PWA installability, and library browse grid (completed 2026-03-22)
 - [ ] **Phase 4: Player and Progress** - In-browser audio player with full controls and local-first progress tracking
 - [ ] **Phase 5: Lock Screen Controls** - Media Session API integration for Android lock-screen playback controls
 - [ ] **Phase 6: Offline Download** - Whole-book offline download with Workbox CacheFirst and range-request service worker
@@ -65,11 +65,11 @@ Plans:
   3. User can search or filter the library by title or author and results update live
   4. User can tap a book to see its detail view (chapter list, duration, description if available)
   5. Browser prompts "Add to Home Screen"; installed app opens as a standalone window with no browser chrome
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 03-01-PLAN.md — PWA infrastructure: serveStatic middleware, manifest, service worker, and icons
-- [ ] 03-02-PLAN.md — Frontend UI: login form, library grid with search, and book detail view
+- [x] 03-01-PLAN.md — PWA infrastructure: serveStatic middleware, manifest, service worker, and icons
+- [x] 03-02-PLAN.md — Frontend UI: login form, library grid with search, and book detail view
 
 ### Phase 4: Player and Progress
 **Goal**: Users can listen to audiobooks with full player controls and resume from exactly where they left off
@@ -114,7 +114,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete   | 2026-03-22 |
 | 2. Auth and API | 2/2 | Complete   | 2026-03-22 |
-| 3. App Shell and Library UI | 0/2 | Not started | - |
+| 3. App Shell and Library UI | 2/2 | Complete   | 2026-03-22 |
 | 4. Player and Progress | 0/TBD | Not started | - |
 | 5. Lock Screen Controls | 0/TBD | Not started | - |
 | 6. Offline Download | 0/TBD | Not started | - |

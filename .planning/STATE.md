@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-auth-and-api-02-02-PLAN.md
-last_updated: "2026-03-22T04:11:28.394Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-03-22T05:20:18.135Z"
 progress:
   total_phases: 6
-  completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  completed_phases: 3
+  total_plans: 7
+  completed_plans: 7
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** A household can browse their audiobook library, listen with full player controls, and pick up exactly where they left off — on any device, even offline.
-**Current focus:** Phase 02 — auth-and-api
+**Current focus:** Phase 03 — app-shell-and-library-ui
 
 ## Current Position
 
-Phase: 3
-Plan: Not started
+Phase: 03 (app-shell-and-library-ui) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -51,6 +51,8 @@ Plan: Not started
 | Phase 01-foundation P03 | 3 | 2 tasks | 5 files |
 | Phase 02-auth-and-api P01 | 185 | 3 tasks | 10 files |
 | Phase 02-auth-and-api P02 | 4 | 3 tasks | 8 files |
+| Phase 03-app-shell-and-library-ui P02 | 123 | 2 tasks | 2 files |
+| Phase 03-app-shell-and-library-ui P01 | 137 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -77,6 +79,8 @@ Recent decisions affecting current work:
 - [Phase 02-auth-and-api]: adminOnly middleware applied at sub-router level in users.ts — covers all user management routes without per-route decoration
 - [Phase 02-auth-and-api]: PATCH /users/:id/password deletes ALL sessions for that user — security invalidation of stale auth on password change
 - [Phase 02-auth-and-api]: cover_url and has_chapters computed in SQL CASE WHEN/EXISTS — no application-layer transformation needed for GET /api/books
+- [Phase 03-app-shell-and-library-ui]: Session check uses GET /api/books on page load to restore session — avoids dedicated session endpoint
+- [Phase 03-app-shell-and-library-ui]: alpine:init listener registered before CDN script tag — ensures stores exist before Alpine initializes
 
 ### Pending Todos
 
@@ -90,6 +94,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T04:08:28.852Z
-Stopped at: Completed 02-auth-and-api-02-02-PLAN.md
+Last session: 2026-03-22T05:20:11.809Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None

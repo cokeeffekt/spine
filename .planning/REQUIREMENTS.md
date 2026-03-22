@@ -55,9 +55,9 @@
 
 ### Library UI
 
-- [ ] **LIB-01**: User sees a grid of audiobooks with cover art, title, and author
-- [ ] **LIB-02**: User can search/filter the library by title or author
-- [ ] **LIB-03**: User can tap a book to see details (chapters, duration, description if available)
+- [x] **LIB-01**: User sees a grid of audiobooks with cover art, title, and author
+- [x] **LIB-02**: User can search/filter the library by title or author
+- [x] **LIB-03**: User can tap a book to see details (chapters, duration, description if available)
 
 ### Offline
 
@@ -131,9 +131,9 @@
 | API-02 | Phase 2 | Complete |
 | API-03 | Phase 2 | Complete |
 | API-04 | Phase 2 | Complete |
-| LIB-01 | Phase 3 | Pending |
-| LIB-02 | Phase 3 | Pending |
-| LIB-03 | Phase 3 | Pending |
+| LIB-01 | Phase 3 | Complete |
+| LIB-02 | Phase 3 | Complete |
+| LIB-03 | Phase 3 | Complete |
 | PWA-01 | Phase 3 | Pending |
 | PWA-02 | Phase 3 | Pending |
 | PWA-03 | Phase 3 | Pending |
