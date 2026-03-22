@@ -11,6 +11,8 @@ export function openDatabase(dbPath: string): Database {
 
 let _db: Database | null = null;
 
+export function _resetForTests(): void { _db = null; }
+
 export function getDatabase(): Database {
   if (!_db) {
     const dbPath = process.env["DB_PATH"] ?? "/data/spine.db";
