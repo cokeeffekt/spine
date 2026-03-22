@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 01-foundation-01-01-PLAN.md
-last_updated: "2026-03-22T03:00:30.477Z"
+stopped_at: Completed 01-foundation-01-02-PLAN.md
+last_updated: "2026-03-22T03:06:06.743Z"
 progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 ## Current Position
 
 Phase: 01 (foundation) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -47,6 +47,7 @@ Plan: 2 of 3
 
 *Updated after each plan completion*
 | Phase 01-foundation P01 | 7 | 2 tasks | 11 files |
+| Phase 01-foundation P02 | 3 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -61,6 +62,9 @@ Recent decisions affecting current work:
 - Target Android Chrome as primary mobile platform; iOS background audio is a platform limitation, not a bug
 - [Phase 01-foundation]: Use bun:sqlite (built-in) instead of better-sqlite3 — better-sqlite3 uses V8 C++ API incompatible with Bun 1.2.x; bun:sqlite has identical synchronous API with zero dependencies
 - [Phase 01-foundation]: Dockerfile uses bun.lock (YAML, Bun 1.2+) not bun.lockb (binary format deprecated)
+- [Phase 01-foundation]: normalizeTag checks exact, UPPER, and lower casing per key — handles real-world ffprobe tag inconsistency
+- [Phase 01-foundation]: extractCoverArt resolves null on ffmpeg failure — missing cover should never fail a scan
+- [Phase 01-foundation]: walkLibrary uses fs.readdirSync recursive option (Node 20+ / Bun native) — no manual recursive walk needed
 
 ### Pending Todos
 
@@ -74,6 +78,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T03:00:30.475Z
-Stopped at: Completed 01-foundation-01-01-PLAN.md
+Last session: 2026-03-22T03:06:06.742Z
+Stopped at: Completed 01-foundation-01-02-PLAN.md
 Resume file: None

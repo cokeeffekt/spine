@@ -31,11 +31,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A book with missing embedded metadata falls back to folder-level helper files (cover.jpg, metadata.json) and is still cataloged
   4. A chapter-less .m4b is cataloged as a single implicit chapter without error
   5. Cover art extracted from a .m4b is accessible as a file on disk
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 
 Plans:
 - [x] 01-01-PLAN.md — Project skeleton, Docker infrastructure, SQLite schema, and types
-- [ ] 01-02-PLAN.md — ffprobe metadata extraction, cover art extraction, and directory walker
+- [x] 01-02-PLAN.md — ffprobe metadata extraction, cover art extraction, and directory walker
 - [ ] 01-03-PLAN.md — Scanner orchestrator, fallback metadata, file watcher, and server integration
 
 ### Phase 2: Auth and API
@@ -104,7 +104,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/3 | Planning complete | - |
+| 1. Foundation | 2/3 | In Progress|  |
 | 2. Auth and API | 0/TBD | Not started | - |
 | 3. App Shell and Library UI | 0/TBD | Not started | - |
 | 4. Player and Progress | 0/TBD | Not started | - |
