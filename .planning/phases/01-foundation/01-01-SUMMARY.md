@@ -157,6 +157,22 @@ None — no external service configuration required.
 - Database schema is ready for Phase 02 (auth: users/sessions tables) and Phase 03 (scanner: populating books/chapters)
 - Docker container is ready to build with ffprobe available at /usr/bin/ffprobe
 
+## Self-Check: PASSED
+
+- FOUND: /home/coke/gits/spine/package.json
+- FOUND: /home/coke/gits/spine/tsconfig.json
+- FOUND: /home/coke/gits/spine/Dockerfile
+- FOUND: /home/coke/gits/spine/docker-compose.yml
+- FOUND: /home/coke/gits/spine/src/types.ts
+- FOUND: /home/coke/gits/spine/src/db/schema.ts
+- FOUND: /home/coke/gits/spine/src/db/index.ts
+- FOUND: /home/coke/gits/spine/src/server.ts
+- FOUND: /home/coke/gits/spine/src/db/schema.test.ts
+- FOUND: /home/coke/gits/spine/.planning/phases/01-foundation/01-01-SUMMARY.md
+- COMMIT 1126af1: feat(01-01): project skeleton, types, and Docker infrastructure — FOUND
+- COMMIT 4e9e8e7: feat(01-01): SQLite schema, database module, and Hono server with /health — FOUND
+- COMMIT 632988c: docs(01-01): complete project-foundation plan — FOUND
+
 ---
 *Phase: 01-foundation*
 *Completed: 2026-03-22*
