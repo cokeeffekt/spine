@@ -47,6 +47,7 @@ A household can browse their audiobook library, listen with full player controls
 - Household of a few people, each needing their own progress tracking
 - .m4b is the sole format — these are typically AAC audio with embedded chapters and metadata
 - ffprobe (ffmpeg) is the standard tool for extracting .m4b metadata and chapter markers
+- Self-contained Docker deployment — Dockerfile + docker-compose for the entire stack
 - "Normalize once" philosophy: scan/extract at ingest time, not on every request
 - Alpine.js chosen for lightweight reactivity without a build step
 - Workbox for service worker / offline caching strategy
@@ -59,7 +60,8 @@ A household can browse their audiobook library, listen with full player controls
 - **Frontend**: Alpine.js + Workbox PWA — no heavy framework, no build step required
 - **Storage**: Filesystem-based library — no database required for media files
 - **Auth**: Full username/password — household members need separate accounts
-- **Deployment**: Fully self-hostable — single server, no external dependencies
+- **Deployment**: Fully self-hostable — single Docker container, no external dependencies
+- **Environment**: Self-contained Dockerized setup — Dockerfile + docker-compose, everything runs in containers
 
 ## Key Decisions
 
