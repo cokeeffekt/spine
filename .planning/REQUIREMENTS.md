@@ -37,8 +37,8 @@
 - [x] **PLAY-04**: User can view chapter list and jump to any chapter
 - [x] **PLAY-05**: Player shows current chapter title, elapsed time, and total duration
 - [x] **PLAY-06**: User's per-book playback speed preference is remembered across sessions
-- [ ] **PLAY-07**: User can set a sleep timer (5, 10, 15, 30, 60 min presets + end of chapter)
-- [ ] **PLAY-08**: Keyboard shortcuts work on desktop (spacebar pause, arrow seek, media keys)
+- [x] **PLAY-07**: User can set a sleep timer (5, 10, 15, 30, 60 min presets + end of chapter)
+- [x] **PLAY-08**: Keyboard shortcuts work on desktop (spacebar pause, arrow seek, media keys)
 
 ### Progress
 
@@ -143,8 +143,8 @@
 | PLAY-04 | Phase 4 | Complete |
 | PLAY-05 | Phase 4 | Complete |
 | PLAY-06 | Phase 4 | Complete |
-| PLAY-07 | Phase 4 | Pending |
-| PLAY-08 | Phase 4 | Pending |
+| PLAY-07 | Phase 4 | Complete |
+| PLAY-08 | Phase 4 | Complete |
 | PROG-01 | Phase 4 | Complete |
 | PROG-02 | Phase 4 | Complete |
 | PROG-03 | Phase 4 | Complete |

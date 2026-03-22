@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation** - Docker container, SQLite schema, and .m4b library scanner with ffprobe metadata extraction (completed 2026-03-22)
 - [x] **Phase 2: Auth and API** - Username/password auth with sessions and all protected REST API endpoints (completed 2026-03-22)
 - [x] **Phase 3: App Shell and Library UI** - Frontend entry point, PWA installability, and library browse grid (completed 2026-03-22)
-- [ ] **Phase 4: Player and Progress** - In-browser audio player with full controls and local-first progress tracking
+- [x] **Phase 4: Player and Progress** - In-browser audio player with full controls and local-first progress tracking (completed 2026-03-22)
 - [ ] **Phase 5: Lock Screen Controls** - Media Session API integration for Android lock-screen playback controls
 - [ ] **Phase 6: Offline Download** - Whole-book offline download with Workbox CacheFirst and range-request service worker
 
@@ -82,12 +82,12 @@ Plans:
   4. Two household members listening to the same book each resume from their own independent position
   5. A sleep timer set to any preset (5/10/15/30/60 min or end of chapter) stops playback at the correct time
   6. Spacebar pauses/resumes, arrow keys seek, and media keys work on desktop
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 04-00-PLAN.md — Wave 0: Extract pure player utility functions and create unit tests
 - [x] 04-01-PLAN.md — Core player: $store.player, IndexedDB progress, audio element, player bar UI, chapter navigation, speed control
-- [ ] 04-02-PLAN.md — Sleep timer, keyboard shortcuts, media keys, book-switch confirmation, go-to-title button
+- [x] 04-02-PLAN.md — Sleep timer, keyboard shortcuts, media keys, book-switch confirmation, go-to-title button
 
 ### Phase 5: Lock Screen Controls
 **Goal**: Users listening on Android can control playback from the lock screen without unlocking the device
@@ -120,6 +120,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Foundation | 3/3 | Complete   | 2026-03-22 |
 | 2. Auth and API | 2/2 | Complete   | 2026-03-22 |
 | 3. App Shell and Library UI | 2/2 | Complete   | 2026-03-22 |
-| 4. Player and Progress | 2/3 | In Progress|  |
+| 4. Player and Progress | 3/3 | Complete   | 2026-03-22 |
 | 5. Lock Screen Controls | 0/TBD | Not started | - |
 | 6. Offline Download | 0/TBD | Not started | - |
