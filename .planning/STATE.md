@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-03-22T13:00:25.426Z"
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-03-22T22:13:52.539Z"
 progress:
   total_phases: 6
   completed_phases: 5
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 15
+  completed_plans: 13
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-22)
 
 **Core value:** A household can browse their audiobook library, listen with full player controls, and pick up exactly where they left off — on any device, even offline.
-**Current focus:** Phase 05 — lock-screen-controls
+**Current focus:** Phase 06 — offline-download
 
 ## Current Position
 
-Phase: 6
-Plan: Not started
+Phase: 06 (offline-download) — EXECUTING
+Plan: 2 of 3
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Plan: Not started
 | Phase 04-player-and-progress P02 | 2 | 2 tasks | 2 files |
 | Phase 05-lock-screen-controls P01 | 2 | 2 tasks | 3 files |
 | Phase 05-lock-screen-controls P02 | 2 | 1 tasks | 1 files |
+| Phase 06-offline-download P01 | 2 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,8 @@ Recent decisions affecting current work:
 - [Phase 05-lock-screen-controls]: null chapter returns null from all three lock-screen functions — no-chapter books bypass chapter-scoped Media Session logic
 - [Phase 05-lock-screen-controls]: _prevChapterIdx initialized to -1 so first play always triggers metadata set even at chapter 0
 - [Phase 05-lock-screen-controls]: positionInterval mirrors saveInterval pattern — start/stop alongside save interval in play/pause lifecycle
+- [Phase 06-offline-download]: downloadDB uses raw IndexedDB IIFE pattern (no library) — single-store schema is simple enough, follows progressDB precedent from Phase 4
+- [Phase 06-offline-download]: reconcileDownloads accepts injected callbacks for testability — no direct Cache Storage dependency in utility function
 
 ### Pending Todos
 
@@ -114,6 +117,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T12:56:31.802Z
-Stopped at: Completed 05-02-PLAN.md
+Last session: 2026-03-22T22:13:52.537Z
+Stopped at: Completed 06-01-PLAN.md
 Resume file: None

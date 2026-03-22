@@ -61,9 +61,9 @@
 
 ### Offline
 
-- [ ] **OFFL-01**: User can download an entire audiobook for offline playback
+- [x] **OFFL-01**: User can download an entire audiobook for offline playback
 - [ ] **OFFL-02**: Downloaded books are stored in Cache Storage and playable without network
-- [ ] **OFFL-03**: User can see which books are downloaded and manage storage
+- [x] **OFFL-03**: User can see which books are downloaded and manage storage
 - [ ] **OFFL-04**: Service worker handles range requests for cached audio (seeking works offline)
 
 ### PWA
@@ -152,9 +152,9 @@
 | LOCK-01 | Phase 5 | Complete |
 | LOCK-02 | Phase 5 | Complete |
 | LOCK-03 | Phase 5 | Complete |
-| OFFL-01 | Phase 6 | Pending |
+| OFFL-01 | Phase 6 | Complete |
 | OFFL-02 | Phase 6 | Pending |
-| OFFL-03 | Phase 6 | Pending |
+| OFFL-03 | Phase 6 | Complete |
 | OFFL-04 | Phase 6 | Pending |
 
 **Coverage:**
