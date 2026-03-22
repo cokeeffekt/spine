@@ -2,19 +2,28 @@ import { Hono } from "hono";
 import { getDatabase } from "./db/index.js";
 import { scanLibrary } from "./scanner/index.js";
 import { startWatcher } from "./scanner/watcher.js";
+import { authMiddleware } from "./middleware/auth.js";
+import { bootstrapAdmin } from "./db/bootstrap.js";
+import authRoutes from "./routes/auth.js";
 
 export const app = new Hono();
 
+// Unauthenticated routes (/health remains open per D-13)
 app.get("/health", (c) => {
   return c.json({ status: "ok", timestamp: new Date().toISOString() });
 });
+
+// Auth routes — outside /api/* so they are NOT behind authMiddleware
+app.route("/auth", authRoutes);
+
+// Protected API routes — middleware registered before route handlers
+app.use("/api/*", authMiddleware);
 
 // Only start the server when not in test mode
 if (process.env["NODE_ENV"] !== "test") {
   const port = parseInt(process.env["PORT"] ?? "3000", 10);
   const libraryRoot = process.env["LIBRARY_ROOT"] ?? "/books";
 
-  // Initialize database
   const db = getDatabase();
 
   console.log(`Spine server listening on port ${port}`);
@@ -23,9 +32,10 @@ if (process.env["NODE_ENV"] !== "test") {
     port,
   });
 
-  // Run initial library scan on startup (D-01)
-  // Wrapped in try/catch — missing LIBRARY_ROOT should not crash server (e.g. first run, no books yet)
   (async () => {
+    // Bootstrap admin account from env vars on empty DB (AUTH-06)
+    await bootstrapAdmin(db);
+
     try {
       await scanLibrary(db, libraryRoot);
     } catch (err) {
@@ -34,7 +44,6 @@ if (process.env["NODE_ENV"] !== "test") {
       );
     }
 
-    // Start periodic re-scan watcher (D-01)
     startWatcher(db, libraryRoot);
     const intervalMs = parseInt(process.env["SCAN_INTERVAL_MS"] ?? "300000", 10);
     console.log(`Library watcher started (interval: ${intervalMs}ms)`);
