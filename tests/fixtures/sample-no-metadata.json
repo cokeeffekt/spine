@@ -1,0 +1,14 @@
+{
+  "format": {
+    "duration": "3600.123456",
+    "size": "50000000",
+    "tags": {}
+  },
+  "streams": [
+    {
+      "codec_type": "audio",
+      "codec_name": "aac"
+    }
+  ],
+  "chapters": []
+}

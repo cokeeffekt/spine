@@ -1,0 +1,54 @@
+{
+  "format": {
+    "duration": "3600.123456",
+    "size": "50000000",
+    "tags": {
+      "title": "Test Audiobook",
+      "artist": "Test Author",
+      "album": "Test Series",
+      "comment": "A test description",
+      "genre": "Fiction",
+      "date": "2024",
+      "publisher": "Test Publisher",
+      "language": "eng",
+      "narrator": "Test Narrator"
+    }
+  },
+  "streams": [
+    {
+      "codec_type": "audio",
+      "codec_name": "aac"
+    },
+    {
+      "codec_type": "video",
+      "codec_name": "mjpeg",
+      "disposition": {
+        "attached_pic": 1
+      }
+    }
+  ],
+  "chapters": [
+    {
+      "id": 0,
+      "time_base": "1/1000",
+      "start": 0,
+      "start_time": "0.000000",
+      "end": 1800000,
+      "end_time": "1800.000000",
+      "tags": {
+        "title": "Chapter 1"
+      }
+    },
+    {
+      "id": 1,
+      "time_base": "1/1000",
+      "start": 1800000,
+      "start_time": "1800.000000",
+      "end": 3600000,
+      "end_time": "3600.123456",
+      "tags": {
+        "title": "Chapter 2"
+      }
+    }
+  ]
+}
