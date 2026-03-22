@@ -2,14 +2,18 @@ services:
   spine:
     build: .
     ports:
-      - "3000:3000"
+      - "3002:3000"
     volumes:
-      - ${AUDIOBOOK_DIR:-./books}:/books:rw
+      # Change this to your audiobook directory
+      - /home/coke/Downloads/audiobook:/books:ro
       - spine-data:/data
     environment:
       - LIBRARY_ROOT=/books
       - DB_PATH=/data/spine.db
       - PORT=3000
+      # Optional: auto-create an admin user on first run
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=changeme
 
 volumes:
   spine-data:
