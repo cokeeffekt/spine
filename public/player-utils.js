@@ -141,7 +141,7 @@ function formatBytes(bytes) {
  * DB: 'spine-downloads', store: 'downloads', keyed by bookId string.
  * NOTE: IndexedDB is browser-only — not usable in Bun tests.
  */
-const downloadDB = (() => {
+var downloadDB = (() => {
   const DB_NAME = 'spine-downloads'
   const DB_VERSION = 1
   const STORE = 'downloads'

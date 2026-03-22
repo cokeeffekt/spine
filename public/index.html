@@ -8,8 +8,7 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="stylesheet" href="/style.css">
 </head>
-<body x-cloak>
-
+<body x-data x-cloak>
   <!-- Session check wrapper: attempts /api/books on load; if 200, restore session -->
   <div x-init="(async () => {
     const res = await fetch('/api/books')
@@ -570,8 +569,9 @@
             )
           }
           // Apply "Downloaded" filter (D-07)
-          if (Alpine.store('downloads').showDownloadedOnly) {
-            books = books.filter(b => Alpine.store('downloads').isDownloaded(b.id))
+          const dl = Alpine.store('downloads')
+          if (dl && dl.showDownloadedOnly) {
+            books = books.filter(b => dl.isDownloaded(b.id))
           }
           return books
         }
