@@ -15,14 +15,14 @@
 
 ### API
 
-- [ ] **API-01**: REST endpoint lists all books in the library (title, author, cover URL, duration)
-- [ ] **API-02**: REST endpoint returns book details including chapter list
-- [ ] **API-03**: REST endpoint streams .m4b audio with HTTP 206 range request support
+- [x] **API-01**: REST endpoint lists all books in the library (title, author, cover URL, duration)
+- [x] **API-02**: REST endpoint returns book details including chapter list
+- [x] **API-03**: REST endpoint streams .m4b audio with HTTP 206 range request support
 - [x] **API-04**: All API endpoints require authentication
 
 ### Auth
 
-- [ ] **AUTH-01**: Admin user can create accounts for household members (no self-registration)
+- [x] **AUTH-01**: Admin user can create accounts for household members (no self-registration)
 - [x] **AUTH-02**: User can log in and receive a session token
 - [x] **AUTH-03**: User can log out and invalidate their session
 - [x] **AUTH-04**: Passwords are hashed with Argon2id (Bun.password or @node-rs/argon2)
@@ -121,15 +121,15 @@
 | SCAN-03 | Phase 1 | Complete |
 | SCAN-04 | Phase 1 | Complete |
 | SCAN-05 | Phase 1 | Complete |
-| AUTH-01 | Phase 2 | Pending |
+| AUTH-01 | Phase 2 | Complete |
 | AUTH-02 | Phase 2 | Complete |
 | AUTH-03 | Phase 2 | Complete |
 | AUTH-04 | Phase 2 | Complete |
 | AUTH-05 | Phase 2 | Complete |
 | AUTH-06 | Phase 2 | Complete |
-| API-01 | Phase 2 | Pending |
-| API-02 | Phase 2 | Pending |
-| API-03 | Phase 2 | Pending |
+| API-01 | Phase 2 | Complete |
+| API-02 | Phase 2 | Complete |
+| API-03 | Phase 2 | Complete |
 | API-04 | Phase 2 | Complete |
 | LIB-01 | Phase 3 | Pending |
 | LIB-02 | Phase 3 | Pending |
