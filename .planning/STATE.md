@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-03-22T22:18:38.091Z"
+stopped_at: "Checkpoint: 06-03 Task 2 human-verify pending"
+last_updated: "2026-03-22T22:22:20.703Z"
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 15
-  completed_plans: 14
+  completed_plans: 15
 ---
 
 # Project State
@@ -60,6 +60,7 @@ Plan: 3 of 3
 | Phase 05-lock-screen-controls P02 | 2 | 1 tasks | 1 files |
 | Phase 06-offline-download P01 | 2 | 2 tasks | 2 files |
 | Phase 06-offline-download P02 | 3 | 2 tasks | 3 files |
+| Phase 06-offline-download P03 | 5 | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,7 @@ Recent decisions affecting current work:
 - [Phase 06-offline-download]: audioCacheFirst strategy instantiated at top level of sw.js so workbox-sw auto-loads rangeRequests/cacheableResponse modules before registerRoute
 - [Phase 06-offline-download]: chunks kept in local closure (not reactive Alpine store) during ReadableStream download — prevents Alpine from proxying ArrayBuffers
 - [Phase 06-offline-download]: cacheAllCovers called fire-and-forget in loadBooks() and session-restore — cover caching never blocks library rendering (D-14)
+- [Phase 06-offline-download]: showDownloadedOnly flag stored on $store.downloads; getDownloadedCount/getTotalSizeBytes as methods; filteredBooks composes search+downloaded filters; offline-dim keeps pointer-events:auto per D-12
 
 ### Pending Todos
 
@@ -121,6 +123,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T22:18:38.090Z
-Stopped at: Completed 06-02-PLAN.md
+Last session: 2026-03-22T22:22:20.701Z
+Stopped at: Checkpoint: 06-03 Task 2 human-verify pending
 Resume file: None

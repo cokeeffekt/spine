@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: App Shell and Library UI** - Frontend entry point, PWA installability, and library browse grid (completed 2026-03-22)
 - [x] **Phase 4: Player and Progress** - In-browser audio player with full controls and local-first progress tracking (completed 2026-03-22)
 - [x] **Phase 5: Lock Screen Controls** - Media Session API integration for Android lock-screen playback controls (completed 2026-03-22)
-- [ ] **Phase 6: Offline Download** - Whole-book offline download with Workbox CacheFirst and range-request service worker
+- [x] **Phase 6: Offline Download** - Whole-book offline download with Workbox CacheFirst and range-request service worker (completed 2026-03-22)
 
 ## Phase Details
 
@@ -112,12 +112,12 @@ Plans:
   2. With the device in airplane mode, a downloaded book plays from start and seeking works (no spinner, no error)
   3. Downloaded books are listed with their storage size; user can delete a download to free space
   4. The app shell and library UI load without a network connection after first use
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 06-01-PLAN.md — TDD: downloadDB, formatBytes, reconcileDownloads pure functions and tests
 - [x] 06-02-PLAN.md — Service worker CacheFirst+RangeRequests, $store.downloads, download UI and progress overlay
-- [ ] 06-03-PLAN.md — Downloaded filter toggle, storage summary, offline dimming, and end-to-end verification
+- [x] 06-03-PLAN.md — Downloaded filter toggle, storage summary, offline dimming, and end-to-end verification
 
 ## Progress
 
@@ -131,4 +131,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. App Shell and Library UI | 2/2 | Complete   | 2026-03-22 |
 | 4. Player and Progress | 3/3 | Complete   | 2026-03-22 |
 | 5. Lock Screen Controls | 2/2 | Complete   | 2026-03-22 |
-| 6. Offline Download | 2/3 | In Progress|  |
+| 6. Offline Download | 3/3 | Complete   | 2026-03-22 |
