@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-03-22T12:52:27.437Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-03-22T12:56:31.804Z"
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 12
-  completed_plans: 11
+  completed_plans: 12
 ---
 
 # Project State
@@ -57,6 +57,7 @@ Plan: 2 of 2
 | Phase 04-player-and-progress P01 | 25 | 2 tasks | 2 files |
 | Phase 04-player-and-progress P02 | 2 | 2 tasks | 2 files |
 | Phase 05-lock-screen-controls P01 | 2 | 2 tasks | 3 files |
+| Phase 05-lock-screen-controls P02 | 2 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,8 @@ Recent decisions affecting current work:
 - [Phase 05-lock-screen-controls]: Return plain object from buildMediaMetadata (not MediaMetadata constructor) so functions are unit-testable outside browser — caller in index.html constructs MediaMetadata from plain object fields
 - [Phase 05-lock-screen-controls]: chapterPositionState clamps position to [0, chDuration] — prevents setPositionState from receiving position > duration which throws DOMException
 - [Phase 05-lock-screen-controls]: null chapter returns null from all three lock-screen functions — no-chapter books bypass chapter-scoped Media Session logic
+- [Phase 05-lock-screen-controls]: _prevChapterIdx initialized to -1 so first play always triggers metadata set even at chapter 0
+- [Phase 05-lock-screen-controls]: positionInterval mirrors saveInterval pattern — start/stop alongside save interval in play/pause lifecycle
 
 ### Pending Todos
 
@@ -111,6 +114,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T12:52:27.434Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-03-22T12:56:31.802Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None

@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Auth and API** - Username/password auth with sessions and all protected REST API endpoints (completed 2026-03-22)
 - [x] **Phase 3: App Shell and Library UI** - Frontend entry point, PWA installability, and library browse grid (completed 2026-03-22)
 - [x] **Phase 4: Player and Progress** - In-browser audio player with full controls and local-first progress tracking (completed 2026-03-22)
-- [ ] **Phase 5: Lock Screen Controls** - Media Session API integration for Android lock-screen playback controls
+- [x] **Phase 5: Lock Screen Controls** - Media Session API integration for Android lock-screen playback controls (completed 2026-03-22)
 - [ ] **Phase 6: Offline Download** - Whole-book offline download with Workbox CacheFirst and range-request service worker
 
 ## Phase Details
@@ -97,11 +97,11 @@ Plans:
   1. Android lock screen shows the current book's title, author, and cover art while audio plays
   2. Lock-screen play/pause and skip forward/back buttons control playback correctly
   3. Lock-screen scrubber reflects current position and a seek on the scrubber updates the player position
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 05-01-PLAN.md — TDD: extract lock-screen pure functions (metadata, position state, seekto) and default cover SVG� TDD: extract lock-screen pure functions (metadata, position state, seekto) and default cover SVG
-- [ ] 05-02-PLAN.md — Wire Media Session metadata, position interval, and seekto handler into Alpine player store� Wire Media Session metadata, position interval, and seekto handler into Alpine player store
+- [x] 05-02-PLAN.md — Wire Media Session metadata, position interval, and seekto handler into Alpine player store� Wire Media Session metadata, position interval, and seekto handler into Alpine player store
 
 ### Phase 6: Offline Download
 **Goal**: Users can download audiobooks and play them without a network connection, including seeking
@@ -115,7 +115,7 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — TDD: extract lock-screen pure functions (metadata, position state, seekto) and default cover SVG� TDD: extract lock-screen pure functions (metadata, position state, seekto) and default cover SVG
+- [x] 05-01-PLAN.md — TDD: extract lock-screen pure functions (metadata, position state, seekto) and default cover SVG� TDD: extract lock-screen pure functions (metadata, position state, seekto) and default cover SVG
 - [ ] 05-02-PLAN.md — Wire Media Session metadata, position interval, and seekto handler into Alpine player store� Wire Media Session metadata, position interval, and seekto handler into Alpine player store
 
 ## Progress
@@ -129,5 +129,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. Auth and API | 2/2 | Complete   | 2026-03-22 |
 | 3. App Shell and Library UI | 2/2 | Complete   | 2026-03-22 |
 | 4. Player and Progress | 3/3 | Complete   | 2026-03-22 |
-| 5. Lock Screen Controls | 1/2 | In Progress|  |
+| 5. Lock Screen Controls | 2/2 | Complete   | 2026-03-22 |
 | 6. Offline Download | 0/TBD | Not started | - |
