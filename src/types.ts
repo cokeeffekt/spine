@@ -61,6 +61,21 @@ export interface NormalizedChapter {
   duration_sec: number;
 }
 
+export interface User {
+  id: number;
+  username: string;
+  password_hash: string;
+  role: 'admin' | 'user';
+  created_at: string;
+}
+
+export interface Session {
+  token: string;
+  user_id: number;
+  expires_at: string;
+  created_at: string;
+}
+
 export interface NormalizedMetadata {
   title: string | null;
   author: string | null;
