@@ -12,13 +12,11 @@ A household can browse their audiobook library, listen with full player controls
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Backend scans a configured directory of .m4b files and extracts metadata (title, author, cover, duration) — Validated in Phase 01: Foundation
+- [x] Backend extracts chapter information from .m4b files — Validated in Phase 01: Foundation
+- [x] Metadata and chapters normalized once at scan time, served from cache — Validated in Phase 01: Foundation
 
 ### Active
-
-- [ ] Backend scans a configured directory of .m4b files and extracts metadata (title, author, cover, duration)
-- [ ] Backend extracts chapter information from .m4b files
-- [ ] Metadata and chapters normalized once at scan time, served from cache
 - [ ] REST API exposes library listing, book details, chapter info, and audio streaming
 - [ ] Full auth system — username/password login with per-user sessions
 - [ ] Multiple household members with separate accounts and isolated progress
@@ -67,7 +65,8 @@ A household can browse their audiobook library, listen with full player controls
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| .m4b only | All user's books are .m4b, simplifies metadata/chapter extraction | — Pending |
+| .m4b only | All user's books are .m4b, simplifies metadata/chapter extraction | Validated — Phase 01 |
+| bun:sqlite over better-sqlite3 | better-sqlite3 uses V8 C++ API incompatible with Bun runtime; bun:sqlite is built-in with same sync API | Phase 01 deviation |
 | Alpine.js over React/Vue | Lightweight, no build step, inspectable | — Pending |
 | Local-first progress | Works offline, user controls their data | — Pending |
 | Whole-book downloads | Simpler than chapter-level granularity, matches user preference | — Pending |
@@ -91,4 +90,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-22 after initialization*
+*Last updated: 2026-03-22 after Phase 01 completion*
