@@ -112,56 +112,58 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SCAN-01 | — | Pending |
-| SCAN-02 | — | Pending |
-| SCAN-03 | — | Pending |
-| SCAN-04 | — | Pending |
-| SCAN-05 | — | Pending |
-| API-01 | — | Pending |
-| API-02 | — | Pending |
-| API-03 | — | Pending |
-| API-04 | — | Pending |
-| AUTH-01 | — | Pending |
-| AUTH-02 | — | Pending |
-| AUTH-03 | — | Pending |
-| AUTH-04 | — | Pending |
-| AUTH-05 | — | Pending |
-| AUTH-06 | — | Pending |
-| PLAY-01 | — | Pending |
-| PLAY-02 | — | Pending |
-| PLAY-03 | — | Pending |
-| PLAY-04 | — | Pending |
-| PLAY-05 | — | Pending |
-| PLAY-06 | — | Pending |
-| PLAY-07 | — | Pending |
-| PLAY-08 | — | Pending |
-| PROG-01 | — | Pending |
-| PROG-02 | — | Pending |
-| PROG-03 | — | Pending |
-| PROG-04 | — | Pending |
-| LOCK-01 | — | Pending |
-| LOCK-02 | — | Pending |
-| LOCK-03 | — | Pending |
-| LIB-01 | — | Pending |
-| LIB-02 | — | Pending |
-| LIB-03 | — | Pending |
-| OFFL-01 | — | Pending |
-| OFFL-02 | — | Pending |
-| OFFL-03 | — | Pending |
-| OFFL-04 | — | Pending |
-| PWA-01 | — | Pending |
-| PWA-02 | — | Pending |
-| PWA-03 | — | Pending |
-| INFRA-01 | — | Pending |
-| INFRA-02 | — | Pending |
-| INFRA-03 | — | Pending |
-| INFRA-04 | — | Pending |
+| INFRA-01 | Phase 1 | Pending |
+| INFRA-02 | Phase 1 | Pending |
+| INFRA-03 | Phase 1 | Pending |
+| INFRA-04 | Phase 1 | Pending |
+| SCAN-01 | Phase 1 | Pending |
+| SCAN-02 | Phase 1 | Pending |
+| SCAN-03 | Phase 1 | Pending |
+| SCAN-04 | Phase 1 | Pending |
+| SCAN-05 | Phase 1 | Pending |
+| AUTH-01 | Phase 2 | Pending |
+| AUTH-02 | Phase 2 | Pending |
+| AUTH-03 | Phase 2 | Pending |
+| AUTH-04 | Phase 2 | Pending |
+| AUTH-05 | Phase 2 | Pending |
+| AUTH-06 | Phase 2 | Pending |
+| API-01 | Phase 2 | Pending |
+| API-02 | Phase 2 | Pending |
+| API-03 | Phase 2 | Pending |
+| API-04 | Phase 2 | Pending |
+| LIB-01 | Phase 3 | Pending |
+| LIB-02 | Phase 3 | Pending |
+| LIB-03 | Phase 3 | Pending |
+| PWA-01 | Phase 3 | Pending |
+| PWA-02 | Phase 3 | Pending |
+| PWA-03 | Phase 3 | Pending |
+| PLAY-01 | Phase 4 | Pending |
+| PLAY-02 | Phase 4 | Pending |
+| PLAY-03 | Phase 4 | Pending |
+| PLAY-04 | Phase 4 | Pending |
+| PLAY-05 | Phase 4 | Pending |
+| PLAY-06 | Phase 4 | Pending |
+| PLAY-07 | Phase 4 | Pending |
+| PLAY-08 | Phase 4 | Pending |
+| PROG-01 | Phase 4 | Pending |
+| PROG-02 | Phase 4 | Pending |
+| PROG-03 | Phase 4 | Pending |
+| PROG-04 | Phase 4 | Pending |
+| LOCK-01 | Phase 5 | Pending |
+| LOCK-02 | Phase 5 | Pending |
+| LOCK-03 | Phase 5 | Pending |
+| OFFL-01 | Phase 6 | Pending |
+| OFFL-02 | Phase 6 | Pending |
+| OFFL-03 | Phase 6 | Pending |
+| OFFL-04 | Phase 6 | Pending |
 
 **Coverage:**
-- v1 requirements: 40 total
-- Mapped to phases: 0
-- Unmapped: 40 ⚠️
+- v1 requirements: 44 total
+- Mapped to phases: 44
+- Unmapped: 0
+
+**Note:** The previous count of 40 was recorded before all requirements were finalized. Actual count confirmed at 44 (INFRA-01..04 added 4 requirements that were present in the file but missing from the prior coverage count).
 
 ---
 *Requirements defined: 2026-03-22*
-*Last updated: 2026-03-22 after initial definition*
+*Last updated: 2026-03-22 after roadmap creation — all requirements mapped to phases*
