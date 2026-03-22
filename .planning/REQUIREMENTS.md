@@ -68,9 +68,9 @@
 
 ### PWA
 
-- [ ] **PWA-01**: App is installable via Web App Manifest (Add to Home Screen)
-- [ ] **PWA-02**: Service worker is registered and caches app shell for offline access
-- [ ] **PWA-03**: App works as standalone window when installed (no browser chrome)
+- [x] **PWA-01**: App is installable via Web App Manifest (Add to Home Screen)
+- [x] **PWA-02**: Service worker is registered and caches app shell for offline access
+- [x] **PWA-03**: App works as standalone window when installed (no browser chrome)
 
 ### Infrastructure
 
@@ -134,9 +134,9 @@
 | LIB-01 | Phase 3 | Complete |
 | LIB-02 | Phase 3 | Complete |
 | LIB-03 | Phase 3 | Complete |
-| PWA-01 | Phase 3 | Pending |
-| PWA-02 | Phase 3 | Pending |
-| PWA-03 | Phase 3 | Pending |
+| PWA-01 | Phase 3 | Complete |
+| PWA-02 | Phase 3 | Complete |
+| PWA-03 | Phase 3 | Complete |
 | PLAY-01 | Phase 4 | Pending |
 | PLAY-02 | Phase 4 | Pending |
 | PLAY-03 | Phase 4 | Pending |

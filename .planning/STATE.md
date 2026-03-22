@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-03-22T05:20:18.135Z"
+stopped_at: Completed 03-app-shell-and-library-ui-01-PLAN.md
+last_updated: "2026-03-22T05:20:29.862Z"
 progress:
   total_phases: 6
   completed_phases: 3
@@ -81,6 +81,9 @@ Recent decisions affecting current work:
 - [Phase 02-auth-and-api]: cover_url and has_chapters computed in SQL CASE WHEN/EXISTS — no application-layer transformation needed for GET /api/books
 - [Phase 03-app-shell-and-library-ui]: Session check uses GET /api/books on page load to restore session — avoids dedicated session endpoint
 - [Phase 03-app-shell-and-library-ui]: alpine:init listener registered before CDN script tag — ensures stores exist before Alpine initializes
+- [Phase 03-app-shell-and-library-ui]: Import serveStatic from 'hono/bun' (not @hono/node-server) for Bun runtime compatibility
+- [Phase 03-app-shell-and-library-ui]: serveStatic registered after all app.route() calls to preserve API route precedence (D-20)
+- [Phase 03-app-shell-and-library-ui]: PWA icons generated with raw PNG binary format using Node.js built-ins — no external dependencies
 
 ### Pending Todos
 
@@ -94,6 +97,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T05:20:11.809Z
-Stopped at: Completed 03-02-PLAN.md
+Last session: 2026-03-22T05:20:29.860Z
+Stopped at: Completed 03-app-shell-and-library-ui-01-PLAN.md
 Resume file: None
