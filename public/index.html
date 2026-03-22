@@ -263,6 +263,11 @@
         <span class="player-chapter" x-text="$store.player.currentChapter?.title || ''"></span>
       </div>
       <span class="player-time" x-text="formatTime($store.player.currentTime)"></span>
+      <button class="player-btn player-goto-btn" @click.stop="(async () => {
+        await $store.library.selectBook($store.player.book.id)
+      })()" aria-label="Go to book detail" title="Go to book detail">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V14H9V4.804z"/></svg>
+      </button>
       <button class="player-btn player-expand-btn" @click.stop="$store.player.expanded = !$store.player.expanded" :aria-label="$store.player.expanded ? 'Collapse player' : 'Expand player'">
         <svg x-show="!$store.player.expanded" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
         <svg x-show="$store.player.expanded" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>
@@ -305,12 +310,31 @@
         </select>
       </div>
 
-      <!-- Sleep timer placeholder row (implemented in Plan 02) -->
-      <div class="player-option-row" id="sleep-timer-row">
-        <label class="player-option-label">Sleep Timer</label>
-        <select class="player-select" disabled>
-          <option>Off</option>
-        </select>
+      <!-- Sleep timer (per D-08) -->
+      <div class="player-option-row">
+        <label class="player-option-label">
+          Sleep Timer
+          <span class="sleep-active-indicator" x-show="$store.player.sleepMode" x-text="
+            $store.player.sleepMode === 'chapter' ? '(end of chapter)' :
+            (typeof $store.player.sleepMode === 'number' ? '(' + $store.player.sleepMode + ' min)' : '')
+          "></span>
+        </label>
+        <div class="sleep-controls">
+          <select class="player-select" @change="
+            const v = $event.target.value;
+            if (v === 'off') $store.player.cancelSleepTimer();
+            else if (v === 'chapter') $store.player.setSleepTimer('chapter');
+            else $store.player.setSleepTimer(parseInt(v));
+          " :value="$store.player.sleepMode === null ? 'off' : ($store.player.sleepMode === 'chapter' ? 'chapter' : String($store.player.sleepMode))">
+            <option value="off">Off</option>
+            <option value="5">5 min</option>
+            <option value="10">10 min</option>
+            <option value="15">15 min</option>
+            <option value="30">30 min</option>
+            <option value="60">60 min</option>
+            <option value="chapter">End of chapter</option>
+          </select>
+        </div>
       </div>
 
       <!-- Chapter list in expanded panel (per D-02, D-04) -->
@@ -451,6 +475,7 @@
         expanded: false,
         sleepTimer: null,
         sleepMode: null,
+        sleepTimerEndsAt: null,
         saveInterval: null,
 
         get currentChapter() {
@@ -465,6 +490,12 @@
             this.currentTime = el.currentTime
             if (this.book && this.book.chapters) {
               this.currentChapterIdx = getCurrentChapterIdx(el.currentTime, this.book.chapters)
+            }
+            // End-of-chapter sleep timer (per D-08)
+            if (this.sleepMode === 'chapter' && this.currentChapter) {
+              if (this.currentTime >= this.currentChapter.end_sec - 0.5) {
+                this._sleepStop()
+              }
             }
           })
 
@@ -486,6 +517,11 @@
         },
 
         async play(book) {
+          // Book-switch confirmation (per D-05)
+          if (this.book && this.book.id !== book.id && this.playing) {
+            const confirmed = confirm('Switch to "' + book.title + '"? Your place in "' + this.book.title + '" is saved.')
+            if (!confirmed) return
+          }
           this.book = book
           const el = window._spineAudio
           el.src = '/api/books/' + book.id + '/audio'
@@ -578,6 +614,33 @@
             clearInterval(this.saveInterval)
             this.saveInterval = null
           }
+        },
+
+        setSleepTimer(mode) {
+          this._clearSleepTimer()
+          this.sleepMode = mode
+          if (typeof mode === 'number') {
+            this.sleepTimerEndsAt = Date.now() + mode * 60 * 1000
+            this.sleepTimer = setTimeout(() => this._sleepStop(), mode * 60 * 1000)
+          }
+          // 'chapter' mode is detected in _onTimeUpdate — no setTimeout needed
+        },
+
+        cancelSleepTimer() {
+          this._clearSleepTimer()
+          this.sleepMode = null
+          this.sleepTimerEndsAt = null
+        },
+
+        _sleepStop() {
+          window._spineAudio.pause()  // triggers _onPause which saves progress
+          this._clearSleepTimer()
+          this.sleepMode = null
+          this.sleepTimerEndsAt = null
+        },
+
+        _clearSleepTimer() {
+          if (this.sleepTimer) { clearTimeout(this.sleepTimer); this.sleepTimer = null }
         }
       })
     })
@@ -599,6 +662,53 @@
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
           .catch(err => console.warn('[SW] Registration failed:', err))
+      })
+    }
+
+    // Keyboard shortcuts (per D-14)
+    document.addEventListener('keydown', (e) => {
+      // Don't intercept when typing in form inputs (per research Pitfall 4)
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return
+      const player = Alpine.store('player')
+      if (!player.book) return
+
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault()  // prevent page scroll
+          player.togglePlay()
+          break
+        case 'ArrowLeft':
+          e.preventDefault()
+          player.skip(-10)  // per D-14: arrow keys seek 10s
+          break
+        case 'ArrowRight':
+          e.preventDefault()
+          player.skip(10)
+          break
+      }
+    })
+
+    // Media Session handlers (per D-14: play, pause, nexttrack, previoustrack)
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.setActionHandler('play', () => {
+        const player = Alpine.store('player')
+        if (player.book && !player.playing) player.togglePlay()
+      })
+      navigator.mediaSession.setActionHandler('pause', () => {
+        const player = Alpine.store('player')
+        if (player.book && player.playing) player.togglePlay()
+      })
+      navigator.mediaSession.setActionHandler('nexttrack', () => {
+        const player = Alpine.store('player')
+        if (player.book && player.currentChapterIdx < player.book.chapters.length - 1) {
+          player.jumpToChapter(player.currentChapterIdx + 1)
+        }
+      })
+      navigator.mediaSession.setActionHandler('previoustrack', () => {
+        const player = Alpine.store('player')
+        if (player.book && player.currentChapterIdx > 0) {
+          player.jumpToChapter(player.currentChapterIdx - 1)
+        }
       })
     }
   </script>
