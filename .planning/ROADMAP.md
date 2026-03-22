@@ -82,9 +82,10 @@ Plans:
   4. Two household members listening to the same book each resume from their own independent position
   5. A sleep timer set to any preset (5/10/15/30/60 min or end of chapter) stops playback at the correct time
   6. Spacebar pauses/resumes, arrow keys seek, and media keys work on desktop
-**Plans:** 2 plans
+**Plans:** 3 plans
 
 Plans:
+- [ ] 04-00-PLAN.md — Wave 0: Extract pure player utility functions and create unit tests
 - [ ] 04-01-PLAN.md — Core player: $store.player, IndexedDB progress, audio element, player bar UI, chapter navigation, speed control
 - [ ] 04-02-PLAN.md — Sleep timer, keyboard shortcuts, media keys, book-switch confirmation, go-to-title button
 
@@ -119,6 +120,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Foundation | 3/3 | Complete   | 2026-03-22 |
 | 2. Auth and API | 2/2 | Complete   | 2026-03-22 |
 | 3. App Shell and Library UI | 2/2 | Complete   | 2026-03-22 |
-| 4. Player and Progress | 0/2 | Not started | - |
+| 4. Player and Progress | 0/3 | Not started | - |
 | 5. Lock Screen Controls | 0/TBD | Not started | - |
 | 6. Offline Download | 0/TBD | Not started | - |
