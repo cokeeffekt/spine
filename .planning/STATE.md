@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-auth-and-api-02-01-PLAN.md
-last_updated: "2026-03-22T04:02:53.847Z"
+stopped_at: Completed 02-auth-and-api-02-02-PLAN.md
+last_updated: "2026-03-22T04:08:28.854Z"
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -50,6 +50,7 @@ Plan: 2 of 2
 | Phase 01-foundation P02 | 3 | 2 tasks | 8 files |
 | Phase 01-foundation P03 | 3 | 2 tasks | 5 files |
 | Phase 02-auth-and-api P01 | 185 | 3 tasks | 10 files |
+| Phase 02-auth-and-api P02 | 4 | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,9 @@ Recent decisions affecting current work:
 - [Phase 02-auth-and-api]: Opaque session token (randomBytes(32)) stored in sessions table — no JWT needed for this scope
 - [Phase 02-auth-and-api]: Constant-time dummy hash verify for missing users prevents timing-based enumeration
 - [Phase 02-auth-and-api]: _resetForTests() exported from db/index.ts for test isolation — avoids module mock complexity
+- [Phase 02-auth-and-api]: adminOnly middleware applied at sub-router level in users.ts — covers all user management routes without per-route decoration
+- [Phase 02-auth-and-api]: PATCH /users/:id/password deletes ALL sessions for that user — security invalidation of stale auth on password change
+- [Phase 02-auth-and-api]: cover_url and has_chapters computed in SQL CASE WHEN/EXISTS — no application-layer transformation needed for GET /api/books
 
 ### Pending Todos
 
@@ -86,6 +90,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T04:02:53.845Z
-Stopped at: Completed 02-auth-and-api-02-01-PLAN.md
+Last session: 2026-03-22T04:08:28.852Z
+Stopped at: Completed 02-auth-and-api-02-02-PLAN.md
 Resume file: None
