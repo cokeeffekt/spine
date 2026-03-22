@@ -5,6 +5,10 @@ import { startWatcher } from "./scanner/watcher.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { bootstrapAdmin } from "./db/bootstrap.js";
 import authRoutes from "./routes/auth.js";
+import userRoutes from "./routes/users.js";
+import bookRoutes from "./routes/books.js";
+import audioRoutes from "./routes/audio.js";
+import coverRoutes from "./routes/cover.js";
 
 export const app = new Hono();
 
@@ -18,6 +22,12 @@ app.route("/auth", authRoutes);
 
 // Protected API routes — middleware registered before route handlers
 app.use("/api/*", authMiddleware);
+
+// Mount all API routes after auth middleware (per D-13, Pitfall 2)
+app.route("/api", userRoutes);
+app.route("/api", bookRoutes);
+app.route("/api", audioRoutes);
+app.route("/api", coverRoutes);
 
 // Only start the server when not in test mode
 if (process.env["NODE_ENV"] !== "test") {
