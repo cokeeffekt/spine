@@ -19,11 +19,11 @@ A household can browse their audiobook library, listen with full player controls
 - [x] Full auth system — username/password login with per-user sessions — Validated in Phase 02: Auth and API
 - [x] PWA browse view — library grid/list with cover art, title, author — Validated in Phase 03: App Shell and Library UI
 - [x] PWA installable on mobile and desktop — Validated in Phase 03: App Shell and Library UI
+- [x] In-browser audio player with chapter navigation, +30s/-30s skip, playback speed control — Validated in Phase 04: Player and Progress
+- [x] Android lock-screen / notification controls via Media Session API — Validated in Phase 05: Lock-Screen Controls (human verification pending)
 
 ### Active
 - [ ] Multiple household members with separate accounts and isolated progress
-- [ ] In-browser audio player with chapter navigation, +30s/-30s skip, playback speed control
-- [ ] Android lock-screen / notification controls via Media Session API
 - [ ] Progress tracking — remembers position per book per user (chapter + timestamp)
 - [ ] Progress is local-first (works offline, stored on-device)
 - [ ] Optional manual progress sync to backend when online
@@ -90,4 +90,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-22 after Phase 04 completion — Player and Progress: full audio player with play/pause/skip/speed/chapters/seek, IndexedDB progress tracking, sleep timer, keyboard shortcuts, media keys*
+*Last updated: 2026-03-22 after Phase 05 completion — Lock-Screen Controls: Media Session metadata, chapter-scoped position state, seekto handler, cleanup on logout*
