@@ -87,6 +87,7 @@
           if (window._spineAudio) { window._spineAudio.pause() }
           $store.player.book = null
           $store.player._clearSaveInterval()
+          $store.player._clearMediaMetadata()
           $store.auth.loggedIn = false
           $store.auth.username = ''
           $store.auth.role = ''
@@ -477,6 +478,8 @@
         sleepMode: null,
         sleepTimerEndsAt: null,
         saveInterval: null,
+        positionInterval: null,
+        _prevChapterIdx: -1,
 
         get currentChapter() {
           if (!this.book || !this.book.chapters) return null
@@ -491,6 +494,10 @@
             if (this.book && this.book.chapters) {
               this.currentChapterIdx = getCurrentChapterIdx(el.currentTime, this.book.chapters)
             }
+            if (this.currentChapterIdx !== this._prevChapterIdx) {
+              this._prevChapterIdx = this.currentChapterIdx
+              this._setMediaMetadata()
+            }
             // End-of-chapter sleep timer (per D-08)
             if (this.sleepMode === 'chapter' && this.currentChapter) {
               if (this.currentTime >= this.currentChapter.end_sec - 0.5) {
@@ -502,12 +509,14 @@
           el.addEventListener('pause', () => {
             this.playing = false
             this._clearSaveInterval()
+            this._clearPositionInterval()
             this._saveProgress()
           })
 
           el.addEventListener('ended', () => {
             this.playing = false
             this._clearSaveInterval()
+            this._clearPositionInterval()
             this._saveProgress()
           })
 
@@ -538,6 +547,9 @@
             el.play()
             this.playing = true
             this._startSaveInterval()
+            this._prevChapterIdx = this.currentChapterIdx
+            this._setMediaMetadata()
+            this._startPositionInterval()
           }, { once: true })
 
           el.load()
@@ -552,6 +564,8 @@
             el.play()
             this.playing = true
             this._startSaveInterval()
+            this._startPositionInterval()
+            this._updatePositionState()
           }
         },
 
@@ -576,6 +590,9 @@
           if (!el) return
           el.currentTime = ch.start_sec
           this.currentChapterIdx = chapterIdx
+          this._prevChapterIdx = chapterIdx
+          this._setMediaMetadata()
+          this._updatePositionState()
           if (!this.playing) {
             el.play()
             this.playing = true
@@ -614,6 +631,45 @@
             clearInterval(this.saveInterval)
             this.saveInterval = null
           }
+        },
+
+        _setMediaMetadata() {
+          if (!('mediaSession' in navigator) || !this.book) return
+          const meta = buildMediaMetadata(this.book, this.currentChapterIdx)
+          if (!meta) return
+          navigator.mediaSession.metadata = new MediaMetadata(meta)
+        },
+
+        _updatePositionState() {
+          if (!('mediaSession' in navigator) || !this.book || !this.currentChapter) return
+          const state = chapterPositionState(this.currentChapter, window._spineAudio?.currentTime ?? 0, window._spineAudio?.playbackRate ?? 1.0)
+          if (!state) return
+          try {
+            navigator.mediaSession.setPositionState(state)
+          } catch (e) {
+            // Ignore stale-state errors at chapter transitions (Pitfall 1)
+          }
+        },
+
+        _startPositionInterval() {
+          this._clearPositionInterval()
+          this.positionInterval = setInterval(() => {
+            if (this.playing) this._updatePositionState()
+          }, 1000)
+        },
+
+        _clearPositionInterval() {
+          if (this.positionInterval) {
+            clearInterval(this.positionInterval)
+            this.positionInterval = null
+          }
+        },
+
+        _clearMediaMetadata() {
+          if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = null
+          }
+          this._clearPositionInterval()
         },
 
         setSleepTimer(mode) {
@@ -708,6 +764,15 @@
         const player = Alpine.store('player')
         if (player.book && player.currentChapterIdx > 0) {
           player.jumpToChapter(player.currentChapterIdx - 1)
+        }
+      })
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        const player = Alpine.store('player')
+        if (!player.book || !player.currentChapter) return
+        const absoluteTime = seektoAbsolute(player.currentChapter, details.seekTime)
+        if (absoluteTime !== null) {
+          player.seek(absoluteTime)
+          player._updatePositionState()
         }
       })
     }
