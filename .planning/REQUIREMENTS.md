@@ -9,7 +9,7 @@
 
 - [ ] **SCAN-01**: Backend scans a configured directory of .m4b files and extracts metadata (title, author, cover art, duration)
 - [ ] **SCAN-02**: Backend extracts chapter information (title, start time, end time) from .m4b files via ffprobe
-- [ ] **SCAN-03**: Metadata and chapters are normalized once at scan time and cached in SQLite
+- [x] **SCAN-03**: Metadata and chapters are normalized once at scan time and cached in SQLite
 - [ ] **SCAN-04**: Cover art extracted from .m4b and served as image endpoint
 - [ ] **SCAN-05**: If .m4b is missing embedded metadata, scanner checks the containing folder for helper files (cover.jpg/png, metadata.json, .cue files) and uses them as fallback
 
@@ -74,10 +74,10 @@
 
 ### Infrastructure
 
-- [ ] **INFRA-01**: Entire stack runs in Docker (Dockerfile + docker-compose)
-- [ ] **INFRA-02**: Docker image includes ffmpeg/ffprobe for .m4b processing
-- [ ] **INFRA-03**: Audiobook directory is mounted as a Docker volume
-- [ ] **INFRA-04**: SQLite database persists via Docker volume
+- [x] **INFRA-01**: Entire stack runs in Docker (Dockerfile + docker-compose)
+- [x] **INFRA-02**: Docker image includes ffmpeg/ffprobe for .m4b processing
+- [x] **INFRA-03**: Audiobook directory is mounted as a Docker volume
+- [x] **INFRA-04**: SQLite database persists via Docker volume
 
 ## v2 Requirements
 
@@ -112,13 +112,13 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 1 | Pending |
-| INFRA-02 | Phase 1 | Pending |
-| INFRA-03 | Phase 1 | Pending |
-| INFRA-04 | Phase 1 | Pending |
+| INFRA-01 | Phase 1 | Complete |
+| INFRA-02 | Phase 1 | Complete |
+| INFRA-03 | Phase 1 | Complete |
+| INFRA-04 | Phase 1 | Complete |
 | SCAN-01 | Phase 1 | Pending |
 | SCAN-02 | Phase 1 | Pending |
-| SCAN-03 | Phase 1 | Pending |
+| SCAN-03 | Phase 1 | Complete |
 | SCAN-04 | Phase 1 | Pending |
 | SCAN-05 | Phase 1 | Pending |
 | AUTH-01 | Phase 2 | Pending |

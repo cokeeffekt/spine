@@ -34,7 +34,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Project skeleton, Docker infrastructure, SQLite schema, and types
+- [x] 01-01-PLAN.md — Project skeleton, Docker infrastructure, SQLite schema, and types
 - [ ] 01-02-PLAN.md — ffprobe metadata extraction, cover art extraction, and directory walker
 - [ ] 01-03-PLAN.md — Scanner orchestrator, fallback metadata, file watcher, and server integration
 
