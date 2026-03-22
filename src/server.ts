@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { serveStatic } from "hono/bun";
 import { getDatabase } from "./db/index.js";
 import { scanLibrary } from "./scanner/index.js";
 import { startWatcher } from "./scanner/watcher.js";
@@ -28,6 +29,10 @@ app.route("/api", userRoutes);
 app.route("/api", bookRoutes);
 app.route("/api", audioRoutes);
 app.route("/api", coverRoutes);
+
+// Static files — must come AFTER all API/auth routes (per D-20, Pitfall 2)
+app.use("/*", serveStatic({ root: "./public" }));
+app.get("/*", serveStatic({ path: "./public/index.html" }));
 
 // Only start the server when not in test mode
 if (process.env["NODE_ENV"] !== "test") {
