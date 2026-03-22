@@ -84,6 +84,9 @@
         <span class="nav-username" x-text="$store.auth.username"></span>
         <button class="nav-logout" @click="(async () => {
           await fetch('/auth/logout', { method: 'POST' })
+          if (window._spineAudio) { window._spineAudio.pause() }
+          $store.player.book = null
+          $store.player._clearSaveInterval()
           $store.auth.loggedIn = false
           $store.auth.username = ''
           $store.auth.role = ''
@@ -218,9 +221,8 @@
           ></div>
 
           <button
-            class="btn-play-disabled"
-            disabled
-            title="Playback coming in a future update"
+            class="btn-play"
+            @click="$store.player.play($store.library.selectedBook)"
           >Play</button>
 
           <template x-if="$store.library.selectedBook.chapters && $store.library.selectedBook.chapters.length > 0">
@@ -228,7 +230,7 @@
               <h3 class="chapter-heading">Chapters</h3>
               <ul class="chapter-list">
                 <template x-for="(chapter, idx) in $store.library.selectedBook.chapters" :key="chapter.id">
-                  <li class="chapter-row">
+                  <li class="chapter-row" role="button" style="cursor:pointer" @click="$store.player.jumpToChapter(idx)">
                     <span class="chapter-num" x-text="idx + 1"></span>
                     <span class="chapter-title" x-text="chapter.title"></span>
                     <span class="chapter-duration" x-text="formatChapterDuration(chapter.start_sec, chapter.end_sec)"></span>
@@ -244,7 +246,142 @@
 
   </div><!-- end session-check wrapper -->
 
+  <!-- ========== Audio Player Bar ========== -->
+  <div class="player-bar" x-data x-show="$store.player.book" x-init="$store.player.initAudio($refs.audio)">
+    <audio x-ref="audio" preload="auto"></audio>
+
+    <!-- Collapsed bar (per D-01): play/pause, title, chapter, time, expand toggle -->
+    <div class="player-collapsed" @click="$store.player.expanded = !$store.player.expanded">
+      <button class="player-btn" @click.stop="$store.player.togglePlay()" :aria-label="$store.player.playing ? 'Pause' : 'Play'">
+        <!-- Play icon (shown when paused) -->
+        <svg x-show="!$store.player.playing" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <!-- Pause icon (shown when playing) -->
+        <svg x-show="$store.player.playing" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+      </button>
+      <div class="player-info">
+        <span class="player-title" x-text="$store.player.book?.title"></span>
+        <span class="player-chapter" x-text="$store.player.currentChapter?.title || ''"></span>
+      </div>
+      <span class="player-time" x-text="formatTime($store.player.currentTime)"></span>
+      <button class="player-btn player-expand-btn" @click.stop="$store.player.expanded = !$store.player.expanded" :aria-label="$store.player.expanded ? 'Collapse player' : 'Expand player'">
+        <svg x-show="!$store.player.expanded" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
+        <svg x-show="$store.player.expanded" width="20" height="20" viewBox="0 0 20 20" fill="currentColor"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>
+      </button>
+    </div>
+
+    <!-- Expanded panel (per D-02) -->
+    <div class="player-expanded" x-show="$store.player.expanded" x-transition>
+      <!-- Seek bar (per D-09) -->
+      <div class="player-seek-row">
+        <span class="seek-time" x-text="formatTime($store.player.currentTime)"></span>
+        <input type="range" class="seek-bar" min="0" :max="$store.player.duration" :value="$store.player.currentTime" step="1" @input="$store.player.seek(parseFloat($event.target.value))" aria-label="Seek">
+        <span class="seek-time" x-text="formatTime($store.player.duration)"></span>
+      </div>
+
+      <!-- Playback controls row -->
+      <div class="player-controls-row">
+        <button class="player-btn" @click="$store.player.skip(-30)" aria-label="Skip back 30 seconds">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/><text x="9" y="16" font-size="8" fill="currentColor">30</text></svg>
+        </button>
+        <button class="player-btn player-btn-lg" @click="$store.player.togglePlay()" :aria-label="$store.player.playing ? 'Pause' : 'Play'">
+          <svg x-show="!$store.player.playing" width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          <svg x-show="$store.player.playing" width="36" height="36" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        </button>
+        <button class="player-btn" @click="$store.player.skip(30)" aria-label="Skip forward 30 seconds">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/><text x="9" y="16" font-size="8" fill="currentColor">30</text></svg>
+        </button>
+      </div>
+
+      <!-- Speed selector (per D-07) -->
+      <div class="player-option-row">
+        <label class="player-option-label">Speed</label>
+        <select class="player-select" :value="$store.player.speed" @change="$store.player.setSpeed(parseFloat($event.target.value))">
+          <option value="1">1.0x</option>
+          <option value="1.2">1.2x</option>
+          <option value="1.4">1.4x</option>
+          <option value="1.6">1.6x</option>
+          <option value="1.8">1.8x</option>
+          <option value="2">2.0x</option>
+        </select>
+      </div>
+
+      <!-- Sleep timer placeholder row (implemented in Plan 02) -->
+      <div class="player-option-row" id="sleep-timer-row">
+        <label class="player-option-label">Sleep Timer</label>
+        <select class="player-select" disabled>
+          <option>Off</option>
+        </select>
+      </div>
+
+      <!-- Chapter list in expanded panel (per D-02, D-04) -->
+      <div class="player-chapters">
+        <h4 class="player-chapters-heading">Chapters</h4>
+        <ul class="player-chapter-list">
+          <template x-for="(ch, idx) in ($store.player.book?.chapters || [])" :key="ch.id">
+            <li class="player-chapter-row" :class="{ 'active-chapter': idx === $store.player.currentChapterIdx }" @click="$store.player.jumpToChapter(idx)">
+              <span class="chapter-num" x-text="idx + 1"></span>
+              <span class="chapter-title" x-text="ch.title"></span>
+              <span class="chapter-duration" x-text="formatChapterDuration(ch.start_sec, ch.end_sec)"></span>
+            </li>
+          </template>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script src="/player-utils.js"></script>
   <script>
+    // ============================================================
+    // progressDB — IndexedDB wrapper for per-user playback progress
+    // ============================================================
+    const progressDB = (() => {
+      const DB_NAME = 'spine-progress'
+      const DB_VERSION = 1
+      const STORE = 'progress'
+      let _db = null
+
+      function open() {
+        if (_db) return Promise.resolve(_db)
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open('spine-progress', 1)
+          req.onupgradeneeded = (e) => {
+            e.target.result.createObjectStore(STORE)
+          }
+          req.onsuccess = (e) => {
+            _db = e.target.result
+            resolve(_db)
+          }
+          req.onerror = (e) => reject(e.target.error)
+        })
+      }
+
+      function key(username, bookId) {
+        return progressKey(username, bookId)
+      }
+
+      async function get(username, bookId) {
+        const db = await open()
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(STORE, 'readonly')
+          const req = tx.objectStore(STORE).get(key(username, bookId))
+          req.onsuccess = (e) => resolve(e.target.result || null)
+          req.onerror = (e) => reject(e.target.error)
+        })
+      }
+
+      async function save(username, bookId, data) {
+        const db = await open()
+        return new Promise((resolve, reject) => {
+          const tx = db.transaction(STORE, 'readwrite')
+          const req = tx.objectStore(STORE).put(data, key(username, bookId))
+          req.onsuccess = () => resolve()
+          req.onerror = (e) => reject(e.target.error)
+        })
+      }
+
+      return { open, key, get, save }
+    })()
+
     document.addEventListener('alpine:init', () => {
       Alpine.store('auth', {
         loggedIn: false,
@@ -301,6 +438,146 @@
             b.title.toLowerCase().includes(q) ||
             (b.author && b.author.toLowerCase().includes(q))
           )
+        }
+      })
+
+      Alpine.store('player', {
+        book: null,
+        playing: false,
+        currentTime: 0,
+        duration: 0,
+        speed: 1.0,
+        currentChapterIdx: 0,
+        expanded: false,
+        sleepTimer: null,
+        sleepMode: null,
+        saveInterval: null,
+
+        get currentChapter() {
+          if (!this.book || !this.book.chapters) return null
+          return this.book.chapters[this.currentChapterIdx] || null
+        },
+
+        initAudio(el) {
+          window._spineAudio = el
+
+          el.addEventListener('timeupdate', () => {
+            this.currentTime = el.currentTime
+            if (this.book && this.book.chapters) {
+              this.currentChapterIdx = getCurrentChapterIdx(el.currentTime, this.book.chapters)
+            }
+          })
+
+          el.addEventListener('pause', () => {
+            this.playing = false
+            this._clearSaveInterval()
+            this._saveProgress()
+          })
+
+          el.addEventListener('ended', () => {
+            this.playing = false
+            this._clearSaveInterval()
+            this._saveProgress()
+          })
+
+          el.addEventListener('loadedmetadata', () => {
+            this.duration = el.duration
+          })
+        },
+
+        async play(book) {
+          this.book = book
+          const el = window._spineAudio
+          el.src = '/api/books/' + book.id + '/audio'
+
+          const saved = await progressDB.get(Alpine.store('auth').username, book.id)
+
+          el.addEventListener('canplay', () => {
+            if (saved) {
+              el.currentTime = saved.timestamp
+              this.currentChapterIdx = saved.chapterIdx
+            }
+            el.playbackRate = saved ? saved.speed : 1.0
+            this.speed = el.playbackRate
+            el.play()
+            this.playing = true
+            this._startSaveInterval()
+          }, { once: true })
+
+          el.load()
+        },
+
+        togglePlay() {
+          const el = window._spineAudio
+          if (!el) return
+          if (this.playing) {
+            el.pause()
+          } else {
+            el.play()
+            this.playing = true
+            this._startSaveInterval()
+          }
+        },
+
+        skip(seconds) {
+          const el = window._spineAudio
+          if (!el) return
+          el.currentTime = clampSkip(el.currentTime, seconds, el.duration)
+        },
+
+        setSpeed(speed) {
+          this.speed = speed
+          const el = window._spineAudio
+          if (el) el.playbackRate = speed
+          this._saveProgress()
+        },
+
+        jumpToChapter(chapterIdx) {
+          if (!this.book || !this.book.chapters) return
+          const ch = this.book.chapters[chapterIdx]
+          if (!ch) return
+          const el = window._spineAudio
+          if (!el) return
+          el.currentTime = ch.start_sec
+          this.currentChapterIdx = chapterIdx
+          if (!this.playing) {
+            el.play()
+            this.playing = true
+            this._startSaveInterval()
+          }
+        },
+
+        seek(time) {
+          const el = window._spineAudio
+          if (el) el.currentTime = time
+        },
+
+        async _saveProgress() {
+          if (!this.book) return
+          await progressDB.save(
+            Alpine.store('auth').username,
+            this.book.id,
+            {
+              timestamp: this.currentTime,
+              chapterIdx: this.currentChapterIdx,
+              speed: this.speed,
+              updatedAt: Date.now()
+            }
+          )
+        },
+
+        _startSaveInterval() {
+          this._clearSaveInterval()
+          this.saveInterval = setInterval(() => {
+            if (this.playing) this._saveProgress()
+          }, 15000)
+        },
+
+        _clearSaveInterval() {
+          if (this.saveInterval) {
+            clearInterval(this.saveInterval)
+            this.saveInterval = null
+          }
         }
       })
     })
