@@ -62,7 +62,68 @@ function sleepTimerMs(minutes) {
   return minutes * 60 * 1000
 }
 
+/**
+ * Build a plain object suitable for navigator.mediaSession.metadata.
+ * Returns a plain object (NOT a MediaMetadata instance) so it can be unit-tested
+ * outside a browser environment.
+ * @param {{ title: string, author: string|null, cover_url: string|null, chapters: Array<{title: string}> }} book
+ * @param {number} chapterIdx - zero-based chapter index
+ * @returns {{ title: string, artist: string, album: string, artwork: Array }} metadata object
+ */
+function buildMediaMetadata(book, chapterIdx) {
+  if (!book) return null
+  const chapters = book.chapters || []
+  const ch = chapters[chapterIdx] || null
+  const chNum = chapterIdx + 1
+  const title = ch
+    ? book.title + ' -- Ch. ' + chNum + ': ' + ch.title
+    : book.title
+  const coverSrc = book.cover_url ?? '/images/default-cover.svg'
+  const coverType = book.cover_url ? 'image/jpeg' : 'image/svg+xml'
+  return {
+    title,
+    artist: book.author ?? '',
+    album: '',
+    artwork: [
+      { src: coverSrc, sizes: '96x96', type: coverType },
+      { src: coverSrc, sizes: '512x512', type: coverType },
+    ],
+  }
+}
+
+/**
+ * Compute chapter-relative position state for navigator.mediaSession.setPositionState().
+ * Scrubber is scoped to the current chapter (0 to chapter duration). Decision D-04.
+ * @param {{ start_sec: number, end_sec: number }|null} chapter
+ * @param {number} currentTime - absolute audio currentTime in seconds
+ * @param {number} playbackRate - current playback rate
+ * @returns {{ duration: number, playbackRate: number, position: number }|null}
+ */
+function chapterPositionState(chapter, currentTime, playbackRate) {
+  if (!chapter) return null
+  const chDuration = chapter.end_sec - chapter.start_sec
+  const rawPosition = currentTime - chapter.start_sec
+  const position = Math.max(0, Math.min(rawPosition, chDuration))
+  return {
+    duration: chDuration,
+    playbackRate: playbackRate,
+    position: position,
+  }
+}
+
+/**
+ * Convert a chapter-relative seekTime to an absolute audio time.
+ * Used by the 'seekto' Media Session action handler. Decision D-06.
+ * @param {{ start_sec: number }|null} chapter
+ * @param {number} seekTime - chapter-relative offset in seconds
+ * @returns {number|null} absolute audio time or null if no chapter
+ */
+function seektoAbsolute(chapter, seekTime) {
+  if (!chapter) return null
+  return chapter.start_sec + seekTime
+}
+
 // Export for both browser global and module systems
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { clampSkip, getCurrentChapterIdx, progressKey, formatTime, sleepTimerMs }
+  module.exports = { clampSkip, getCurrentChapterIdx, progressKey, formatTime, sleepTimerMs, buildMediaMetadata, chapterPositionState, seektoAbsolute }
 }
