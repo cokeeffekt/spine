@@ -843,3 +843,121 @@ body {
 .player-goto-btn:hover svg {
   opacity: 1;
 }
+
+/* ========== Download Controls ========== */
+.download-controls { margin-top: 0.75rem; }
+.btn-download {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  padding: 0.5rem 1.25rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+.btn-download:hover { background: var(--color-border); }
+.btn-download-disabled { opacity: 0.5; cursor: not-allowed; }
+.download-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.download-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--color-surface);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.download-progress-fill {
+  height: 100%;
+  background: var(--color-accent);
+  transition: width 0.3s ease;
+}
+.download-progress-text {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  min-width: 3ch;
+  text-align: right;
+}
+.btn-download-cancel {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+.download-complete-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.download-status {
+  color: var(--color-accent);
+  font-size: 0.9rem;
+}
+.btn-download-delete {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+.btn-download-delete:hover { color: #e74c3c; }
+.download-error-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.download-error-text { color: #e74c3c; font-size: 0.9rem; }
+.offline-play-notice {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+
+/* Download overlay on cover art (D-03, D-04) */
+.cover-container { position: relative; }
+.download-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: inherit;
+}
+.download-overlay-text {
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+/* Downloaded badge on cover (D-06) */
+.downloaded-badge {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background: var(--color-accent);
+  color: #fff;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Offline indicator (D-13) */
+.offline-indicator {
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  margin-right: 0.5rem;
+}

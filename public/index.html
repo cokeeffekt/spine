@@ -17,6 +17,8 @@
       $store.library.books = await res.json()
       $store.auth.loggedIn = true
       $store.app.view = 'library'
+      // D-14: Proactively cache all cover art for offline availability
+      Alpine.store('downloads').cacheAllCovers($store.library.books)
     }
   })()">
 
@@ -81,6 +83,9 @@
     <nav class="nav-bar" x-show="$store.app.view === 'library' || $store.app.view === 'detail'">
       <span class="nav-brand">Spine</span>
       <div class="nav-right">
+        <span class="offline-indicator" x-show="$store.app.isOffline" title="You are offline">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0119 12.55"/><path d="M5 12.55a10.94 10.94 0 015.17-2.39"/><path d="M10.71 5.05A16 16 0 0122.56 9"/><path d="M1.42 9a15.91 15.91 0 014.7-2.88"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+        </span>
         <span class="nav-username" x-text="$store.auth.username"></span>
         <button class="nav-logout" @click="(async () => {
           await fetch('/auth/logout', { method: 'POST' })
@@ -178,6 +183,21 @@
               <div class="cover-placeholder" :style="book.cover_url ? 'display:none' : ''">
                 <span x-text="book.title ? book.title.charAt(0).toUpperCase() : '?'"></span>
               </div>
+
+              <!-- Download progress overlay on cover (D-03) -->
+              <div
+                class="download-overlay"
+                x-show="$store.downloads.isDownloading(book.id)"
+                @click.stop="$store.downloads.cancelDownload(book.id)"
+                title="Cancel download"
+              >
+                <div class="download-overlay-text" x-text="Math.round($store.downloads.getProgress(book.id) * 100) + '%'"></div>
+              </div>
+
+              <!-- Downloaded badge on cover (D-06) -->
+              <div class="downloaded-badge" x-show="$store.downloads.isDownloaded(book.id)" aria-label="Downloaded">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z"/></svg>
+              </div>
             </div>
             <div class="card-text">
               <div class="card-title" x-text="book.title"></div>
@@ -224,7 +244,59 @@
           <button
             class="btn-play"
             @click="$store.player.play($store.library.selectedBook)"
+            x-show="!$store.app.isOffline || $store.downloads.isDownloaded($store.library.selectedBook.id)"
           >Play</button>
+          <span
+            class="offline-play-notice"
+            x-show="$store.app.isOffline && !$store.downloads.isDownloaded($store.library.selectedBook.id)"
+          >Download required for offline playback</span>
+
+          <!-- Download controls (D-01: detail view only, D-02: button states) -->
+          <div class="download-controls" x-data>
+            <!-- Download button: shown when not downloaded and online -->
+            <button
+              class="btn-download"
+              x-show="!$store.downloads.isDownloaded($store.library.selectedBook.id) && !$store.downloads.isDownloading($store.library.selectedBook.id) && !$store.app.isOffline && $store.downloads.states[$store.library.selectedBook.id]?.status !== 'error'"
+              @click="$store.downloads.startDownload($store.library.selectedBook)"
+            >Download</button>
+
+            <!-- Downloading: progress bar (D-03 in detail view) -->
+            <div
+              class="download-progress-row"
+              x-show="$store.downloads.isDownloading($store.library.selectedBook.id)"
+            >
+              <div class="download-progress-bar">
+                <div class="download-progress-fill" :style="'width:' + Math.round($store.downloads.getProgress($store.library.selectedBook.id) * 100) + '%'"></div>
+              </div>
+              <span class="download-progress-text" x-text="Math.round($store.downloads.getProgress($store.library.selectedBook.id) * 100) + '%'"></span>
+              <button class="btn-download-cancel" @click="$store.downloads.cancelDownload($store.library.selectedBook.id)" title="Cancel download">Cancel</button>
+            </div>
+
+            <!-- Downloaded: show size + delete option (D-02, D-09) -->
+            <div
+              class="download-complete-row"
+              x-show="$store.downloads.isDownloaded($store.library.selectedBook.id)"
+            >
+              <span class="download-status">Downloaded <span x-text="formatBytes($store.downloads.getSizeBytes($store.library.selectedBook.id))"></span></span>
+              <button class="btn-download-delete" @click="$store.downloads.deleteDownload($store.library.selectedBook)">Delete Download</button>
+            </div>
+
+            <!-- Error state (D-05) -->
+            <div
+              class="download-error-row"
+              x-show="$store.downloads.states[$store.library.selectedBook.id]?.status === 'error'"
+            >
+              <span class="download-error-text">Download failed</span>
+              <button class="btn-download" @click="$store.downloads.startDownload($store.library.selectedBook)">Retry</button>
+            </div>
+
+            <!-- Offline: download unavailable (D-12) -->
+            <button
+              class="btn-download btn-download-disabled"
+              x-show="!$store.downloads.isDownloaded($store.library.selectedBook.id) && !$store.downloads.isDownloading($store.library.selectedBook.id) && $store.app.isOffline"
+              disabled
+            >Available when online</button>
+          </div>
 
           <template x-if="$store.library.selectedBook.chapters && $store.library.selectedBook.chapters.length > 0">
             <div>
@@ -407,6 +479,9 @@
       return { open, key, get, save }
     })()
 
+    window.addEventListener('online', () => { if (window.Alpine) Alpine.store('app').isOffline = false })
+    window.addEventListener('offline', () => { if (window.Alpine) Alpine.store('app').isOffline = true })
+
     document.addEventListener('alpine:init', () => {
       Alpine.store('auth', {
         loggedIn: false,
@@ -415,7 +490,8 @@
       })
 
       Alpine.store('app', {
-        view: 'login'
+        view: 'login',
+        isOffline: !navigator.onLine
       })
 
       Alpine.store('library', {
@@ -434,6 +510,8 @@
               return
             }
             this.books = await res.json()
+            // D-14: Proactively cache all cover art for offline availability
+            Alpine.store('downloads').cacheAllCovers(this.books)
           } catch (e) {
             console.error('Failed to load books:', e)
           } finally {
@@ -697,6 +775,142 @@
 
         _clearSleepTimer() {
           if (this.sleepTimer) { clearTimeout(this.sleepTimer); this.sleepTimer = null }
+        }
+      })
+
+      Alpine.store('downloads', {
+        // Reactive state: { [bookId]: { status: 'idle'|'downloading'|'complete'|'error', progress: 0-1, sizeBytes: 0 } }
+        states: {},
+        _controllers: {},  // AbortControllers, non-reactive (stored directly on this)
+
+        async init() {
+          // Restore from IndexedDB on page load
+          const keys = await downloadDB.getAllKeys()
+          const cache = await caches.open('spine-audio')
+          for (const bookId of keys) {
+            const entry = await cache.match('/api/books/' + bookId + '/audio')
+            if (entry) {
+              const meta = await downloadDB.get(bookId)
+              this.states[bookId] = { status: 'complete', progress: 1, sizeBytes: meta ? meta.sizeBytes : 0 }
+            } else {
+              // Stale IndexedDB entry — cache was evicted
+              await downloadDB.delete(bookId)
+            }
+          }
+          // Request persistent storage silently on first load if any downloads exist
+          if (keys.length > 0 && navigator.storage && navigator.storage.persist) {
+            navigator.storage.persist().catch(() => {})
+          }
+        },
+
+        // D-14: Proactively cache ALL cover art when library loads.
+        // Called fire-and-forget from $store.library.load() after books array arrives.
+        // Uses Cache Storage 'spine-covers' matching the service worker's CacheFirst route.
+        async cacheAllCovers(books) {
+          try {
+            const coverCache = await caches.open('spine-covers')
+            const urls = books.map(b => '/api/books/' + b.id + '/cover')
+            // Filter out already-cached URLs to avoid redundant fetches
+            const uncached = []
+            for (const url of urls) {
+              const existing = await coverCache.match(url)
+              if (!existing) uncached.push(url)
+            }
+            if (uncached.length > 0) {
+              await coverCache.addAll(uncached)
+            }
+          } catch (err) {
+            // Fire-and-forget: log but don't block library loading
+            console.warn('Cover pre-cache failed (non-fatal):', err.message)
+          }
+        },
+
+        isDownloaded(bookId) { return this.states[bookId]?.status === 'complete' },
+        isDownloading(bookId) { return this.states[bookId]?.status === 'downloading' },
+        getProgress(bookId) { return this.states[bookId]?.progress ?? 0 },
+        getSizeBytes(bookId) { return this.states[bookId]?.sizeBytes ?? 0 },
+
+        async startDownload(book) {
+          if (this.states[book.id]?.status === 'downloading') return
+          this.states[book.id] = { status: 'downloading', progress: 0, sizeBytes: 0 }
+
+          const controller = new AbortController()
+          this._controllers[book.id] = controller
+
+          try {
+            const res = await fetch('/api/books/' + book.id + '/audio', { signal: controller.signal })
+            if (!res.ok) throw new Error('HTTP ' + res.status)
+
+            const totalBytes = parseInt(res.headers.get('Content-Length') || '0', 10)
+            const reader = res.body.getReader()
+            // Keep chunks in closure, NOT on reactive store (Pitfall 6 from research)
+            const chunks = []
+            let loaded = 0
+
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              chunks.push(value)
+              loaded += value.byteLength
+              this.states[book.id] = {
+                status: 'downloading',
+                progress: totalBytes > 0 ? loaded / totalBytes : 0,
+                sizeBytes: loaded
+              }
+            }
+
+            // Reassemble and store in Cache Storage
+            const blob = new Blob(chunks, { type: 'audio/mp4' })
+            const fullResponse = new Response(blob, {
+              status: 200,
+              headers: {
+                'Content-Type': 'audio/mp4',
+                'Content-Length': String(loaded),
+                'Accept-Ranges': 'bytes',
+              }
+            })
+            const cache = await caches.open('spine-audio')
+            await cache.put('/api/books/' + book.id + '/audio', fullResponse)
+
+            await downloadDB.save(book.id, { sizeBytes: loaded, downloadedAt: Date.now() })
+            this.states[book.id] = { status: 'complete', progress: 1, sizeBytes: loaded }
+
+            // Request persistent storage on first successful download
+            if (navigator.storage && navigator.storage.persist) {
+              navigator.storage.persist().catch(() => {})
+            }
+          } catch (err) {
+            if (err.name === 'AbortError') {
+              // Cancelled by user — cleanup done in cancelDownload
+            } else {
+              console.error('Download failed:', err)
+              this.states[book.id] = { status: 'error', progress: 0, sizeBytes: 0 }
+              await this._cleanup(book.id)
+            }
+          } finally {
+            delete this._controllers[book.id]
+          }
+        },
+
+        async cancelDownload(bookId) {
+          const controller = this._controllers[bookId]
+          if (controller) controller.abort()
+          await this._cleanup(bookId)
+          this.states[bookId] = { status: 'idle', progress: 0, sizeBytes: 0 }
+        },
+
+        async deleteDownload(book) {
+          // D-10: native confirm() dialog
+          const size = formatBytes(this.states[book.id]?.sizeBytes || 0)
+          if (!confirm('Delete download for ' + book.title + '? (' + size + ')')) return
+          await this._cleanup(book.id)
+          this.states[book.id] = { status: 'idle', progress: 0, sizeBytes: 0 }
+        },
+
+        async _cleanup(bookId) {
+          const cache = await caches.open('spine-audio')
+          await cache.delete('/api/books/' + bookId + '/audio')
+          await downloadDB.delete(bookId)
         }
       })
     })
