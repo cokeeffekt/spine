@@ -129,6 +129,25 @@
             <path d="M4.646 4.646a.5.5 0 01.708 0L8 7.293l2.646-2.647a.5.5 0 01.708.708L8.707 8l2.647 2.646a.5.5 0 01-.708.708L8 8.707l-2.646 2.647a.5.5 0 01-.708-.708L7.293 8 4.646 5.354a.5.5 0 010-.708z"/>
           </svg>
         </button>
+
+        <!-- Downloaded filter toggle (D-07) -->
+        <button
+          class="filter-downloaded"
+          :class="{ active: $store.downloads.showDownloadedOnly }"
+          @click="$store.downloads.toggleDownloadedFilter()"
+          x-show="$store.downloads.getDownloadedCount() > 0"
+          aria-label="Show downloaded books only"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M.5 9.9a.5.5 0 01.5.5v2.5a1 1 0 001 1h12a1 1 0 001-1v-2.5a.5.5 0 011 0v2.5a2 2 0 01-2 2H2a2 2 0 01-2-2v-2.5a.5.5 0 01.5-.5z"/><path d="M7.646 11.854a.5.5 0 00.708 0l3-3a.5.5 0 00-.708-.708L8.5 10.293V1.5a.5.5 0 00-1 0v8.793L5.354 8.146a.5.5 0 10-.708.708l3 3z"/></svg>
+          Downloaded
+        </button>
+
+        <!-- Storage summary (D-08): shown only when filter is active -->
+        <span
+          class="storage-summary"
+          x-show="$store.downloads.showDownloadedOnly"
+          x-text="$store.downloads.getDownloadedCount() + ' book' + ($store.downloads.getDownloadedCount() !== 1 ? 's' : '') + ' -- ' + formatBytes($store.downloads.getTotalSizeBytes())"
+        ></span>
       </div>
 
       <!-- Loading skeleton -->
@@ -171,7 +190,13 @@
 
         <!-- Book cards -->
         <template x-for="book in $store.library.filteredBooks" :key="book.id">
-          <div class="book-card" @click="$store.library.selectBook(book.id)" role="button" tabindex="0" @keydown.enter="$store.library.selectBook(book.id)">
+          <div
+            class="book-card"
+            :class="{ 'offline-dim': $store.app.isOffline && !$store.downloads.isDownloaded(book.id) }"
+            @click="$store.library.selectBook(book.id)"
+            role="button" tabindex="0"
+            @keydown.enter="$store.library.selectBook(book.id)"
+          >
             <div class="cover-container">
               <img
                 x-show="book.cover_url"
@@ -535,12 +560,20 @@
         },
 
         get filteredBooks() {
-          if (!this.query) return this.books
-          const q = this.query.toLowerCase()
-          return this.books.filter(b =>
-            b.title.toLowerCase().includes(q) ||
-            (b.author && b.author.toLowerCase().includes(q))
-          )
+          let books = this.books
+          // Apply search filter
+          if (this.query) {
+            const q = this.query.toLowerCase()
+            books = books.filter(b =>
+              b.title.toLowerCase().includes(q) ||
+              (b.author && b.author.toLowerCase().includes(q))
+            )
+          }
+          // Apply "Downloaded" filter (D-07)
+          if (Alpine.store('downloads').showDownloadedOnly) {
+            books = books.filter(b => Alpine.store('downloads').isDownloaded(b.id))
+          }
+          return books
         }
       })
 
@@ -782,6 +815,21 @@
         // Reactive state: { [bookId]: { status: 'idle'|'downloading'|'complete'|'error', progress: 0-1, sizeBytes: 0 } }
         states: {},
         _controllers: {},  // AbortControllers, non-reactive (stored directly on this)
+        showDownloadedOnly: false,
+
+        getDownloadedCount() {
+          return Object.values(this.states).filter(s => s.status === 'complete').length
+        },
+        getTotalSizeBytes() {
+          let total = 0
+          for (const s of Object.values(this.states)) {
+            if (s.status === 'complete') total += s.sizeBytes
+          }
+          return total
+        },
+        toggleDownloadedFilter() {
+          this.showDownloadedOnly = !this.showDownloadedOnly
+        },
 
         async init() {
           // Restore from IndexedDB on page load

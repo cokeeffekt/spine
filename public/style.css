@@ -961,3 +961,43 @@ body {
   align-items: center;
   margin-right: 0.5rem;
 }
+
+/* ========== Downloaded Filter & Storage ========== */
+.filter-downloaded {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  padding: 0.35rem 0.75rem;
+  border-radius: 16px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  margin-left: 0.5rem;
+  white-space: nowrap;
+}
+.filter-downloaded:hover { border-color: var(--color-accent); }
+.filter-downloaded.active {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: var(--color-accent);
+}
+.storage-summary {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-left: 0.5rem;
+  white-space: nowrap;
+}
+
+/* Offline dimming (D-11) */
+.offline-dim {
+  opacity: 0.4;
+  filter: grayscale(0.6);
+  pointer-events: auto;  /* still tappable per D-12 */
+}
+
+/* Adjust search-bar for filter toggle */
+.search-bar {
+  flex-wrap: wrap;
+}
