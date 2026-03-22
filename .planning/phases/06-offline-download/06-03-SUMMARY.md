@@ -34,7 +34,7 @@ requirements-completed:
 metrics:
   duration: 5 minutes
   completed_date: "2026-03-23"
-  tasks_completed: 1
+  tasks_completed: 2
   files_modified: 2
 ---
 
@@ -44,14 +44,14 @@ metrics:
 
 ## Status
 
-**PAUSED at checkpoint** — Task 1 complete. Task 2 (human verification) requires manual end-to-end testing.
+**COMPLETE** — Task 1 implemented, Task 2 human-verified (approved). Three browser bugs found and fixed during testing.
 
 ## Performance
 
 - **Duration:** ~5 min (Task 1 only)
 - **Started:** 2026-03-23
-- **Completed:** 2026-03-23 (partial — checkpoint pending)
-- **Tasks:** 1/2 (Task 2 is human-verify checkpoint)
+- **Completed:** 2026-03-23
+- **Tasks:** 2/2
 - **Files modified:** 2
 
 ## Accomplishments
@@ -66,9 +66,7 @@ metrics:
 ## Task Commits
 
 1. **Task 1: Downloaded filter toggle, storage summary, and offline dimming** - `ecf6102` (feat)
-2. **Task 2: Human verification** - PENDING (checkpoint:human-verify)
-
-**Plan metadata:** TBD after checkpoint completes
+2. **Task 2: Human verification** - `eb073c9` (fix — three browser bugs found and fixed during e2e testing)
 
 ## Files Created/Modified
 
@@ -83,7 +81,11 @@ metrics:
 
 ## Deviations from Plan
 
-None — plan executed exactly as written.
+Three browser bugs found during human verification:
+1. `const downloadDB` in player-utils.js doesn't create a browser global — changed to `var`
+2. `<body x-cloak>` without `x-data` — Alpine never removed x-cloak, causing white screen
+3. `filteredBooks` getter called `Alpine.store('downloads')` before it was defined — added null check
+All fixed in commit `eb073c9`.
 
 ## Known Stubs
 
@@ -104,4 +106,4 @@ Commit verified: `ecf6102`
 
 ---
 *Phase: 06-offline-download*
-*Completed: 2026-03-23 (pending checkpoint verification)*
+*Completed: 2026-03-23*
