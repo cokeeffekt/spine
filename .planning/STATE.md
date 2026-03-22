@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-03-22T22:13:52.539Z"
+stopped_at: Completed 06-02-PLAN.md
+last_updated: "2026-03-22T22:18:38.091Z"
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 15
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-22)
 ## Current Position
 
 Phase: 06 (offline-download) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Plan: 2 of 3
 | Phase 05-lock-screen-controls P01 | 2 | 2 tasks | 3 files |
 | Phase 05-lock-screen-controls P02 | 2 | 1 tasks | 1 files |
 | Phase 06-offline-download P01 | 2 | 2 tasks | 2 files |
+| Phase 06-offline-download P02 | 3 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -104,6 +105,9 @@ Recent decisions affecting current work:
 - [Phase 05-lock-screen-controls]: positionInterval mirrors saveInterval pattern — start/stop alongside save interval in play/pause lifecycle
 - [Phase 06-offline-download]: downloadDB uses raw IndexedDB IIFE pattern (no library) — single-store schema is simple enough, follows progressDB precedent from Phase 4
 - [Phase 06-offline-download]: reconcileDownloads accepts injected callbacks for testability — no direct Cache Storage dependency in utility function
+- [Phase 06-offline-download]: audioCacheFirst strategy instantiated at top level of sw.js so workbox-sw auto-loads rangeRequests/cacheableResponse modules before registerRoute
+- [Phase 06-offline-download]: chunks kept in local closure (not reactive Alpine store) during ReadableStream download — prevents Alpine from proxying ArrayBuffers
+- [Phase 06-offline-download]: cacheAllCovers called fire-and-forget in loadBooks() and session-restore — cover caching never blocks library rendering (D-14)
 
 ### Pending Todos
 
@@ -117,6 +121,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-22T22:13:52.537Z
-Stopped at: Completed 06-01-PLAN.md
+Last session: 2026-03-22T22:18:38.090Z
+Stopped at: Completed 06-02-PLAN.md
 Resume file: None
