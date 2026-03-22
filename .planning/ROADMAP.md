@@ -49,7 +49,11 @@ Plans:
   4. A logged-out user cannot access any API endpoint (receives 401)
   5. The library listing endpoint returns books with title, author, cover URL, and duration
   6. The audio streaming endpoint responds with HTTP 206 and correct Content-Range header for a byte-range request (`curl -r 0-1023` returns 206)
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Schema extension, auth middleware, admin bootstrap, and login/logout routes
+- [ ] 02-02-PLAN.md — User management, book/cover API routes, and audio streaming with HTTP 206
 
 ### Phase 3: App Shell and Library UI
 **Goal**: Users can open the app in a browser, log in, browse their audiobook library, and install the app to their home screen
@@ -105,7 +109,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete   | 2026-03-22 |
-| 2. Auth and API | 0/TBD | Not started | - |
+| 2. Auth and API | 0/2 | Not started | - |
 | 3. App Shell and Library UI | 0/TBD | Not started | - |
 | 4. Player and Progress | 0/TBD | Not started | - |
 | 5. Lock Screen Controls | 0/TBD | Not started | - |
