@@ -71,19 +71,8 @@ export async function scanFile(
   // SCAN-05: apply fallback metadata from metadata.json / folder name
   metadata = applyFallbackMetadata(metadata, filePath);
 
-  // Determine cover path
-  let coverPath: string | null = null;
-  if (metadata.has_cover_stream) {
-    try {
-      coverPath = await extractCoverArt(filePath, true);
-    } catch {
-      coverPath = null;
-    }
-  } else {
-    coverPath = resolveCoverPath(filePath, false);
-  }
-
-  // UPSERT into books — ON CONFLICT handles both insert and update paths
+  // UPSERT into books first to get the book ID, then extract cover using that ID.
+  // Cover extraction writes to /data/covers/{bookId}.jpg (writable volume).
   // is_missing = 0 in both branches handles D-04 (reappearance unflagging)
   const upsert = db.prepare(`
     INSERT INTO books (
@@ -113,7 +102,6 @@ export async function scanFile(
       language        = excluded.language,
       duration_sec    = excluded.duration_sec,
       codec           = excluded.codec,
-      cover_path      = excluded.cover_path,
       updated_at      = datetime('now')
   `);
 
@@ -133,13 +121,28 @@ export async function scanFile(
     metadata.language,
     metadata.duration_sec,
     metadata.codec,
-    coverPath
+    null  // cover_path updated below after we have the book ID
   );
 
-  // Get book_id for chapter insertion
+  // Get book_id for chapter insertion and cover extraction
   const bookRow = db
     .query("SELECT id FROM books WHERE file_path = ?")
     .get(filePath) as { id: number };
+
+  // Determine cover path — extract AFTER insert so we have the book ID
+  let coverPath: string | null = null;
+  if (metadata.has_cover_stream) {
+    try {
+      coverPath = await extractCoverArt(filePath, true, bookRow.id);
+    } catch {
+      coverPath = null;
+    }
+  } else {
+    coverPath = resolveCoverPath(filePath, false, bookRow.id);
+  }
+
+  // Update cover_path now that we have it
+  db.prepare("UPDATE books SET cover_path = ? WHERE id = ?").run(coverPath, bookRow.id);
 
   // Atomically replace chapters
   db.transaction(() => {
