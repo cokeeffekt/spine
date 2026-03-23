@@ -55,7 +55,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 08-01-PLAN.md — Backend: scanner progress callback, scan lock, SSE routes, Audnexus enrichment
-- [ ] 08-02-PLAN.md — Frontend: admin tab UI, Library tab with SSE progress bar, visual verification
+- [x] 08-02-PLAN.md — Frontend: admin tab UI, Library tab with SSE progress bar, visual verification
 
 ### Phase 9: Progress Sync and Tiles
 **Goal**: Playback progress syncs to the server so users resume at the right position on any device, and each grid tile shows a reading percentage
