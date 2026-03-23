@@ -186,8 +186,18 @@ body {
 }
 
 .search-bar {
-  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 24px;
+}
+
+/* Wrapper that holds the input + icon + clear button together */
+.search-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 180px;
 }
 
 .search-input {
@@ -225,7 +235,7 @@ body {
 
 .search-clear {
   position: absolute;
-  right: 12px;
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
   background: none;
@@ -974,8 +984,8 @@ body {
   border-radius: 16px;
   cursor: pointer;
   font-size: 0.85rem;
-  margin-left: 0.5rem;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .filter-downloaded:hover { border-color: var(--color-accent); }
 .filter-downloaded.active {
@@ -986,8 +996,8 @@ body {
 .storage-summary {
   font-size: 0.8rem;
   color: var(--color-text-muted);
-  margin-left: 0.5rem;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* Offline dimming (D-11) */
@@ -997,7 +1007,4 @@ body {
   pointer-events: auto;  /* still tappable per D-12 */
 }
 
-/* Adjust search-bar for filter toggle */
-.search-bar {
-  flex-wrap: wrap;
-}
+/* filter-downloaded and storage-summary are flex siblings of .search-input-wrap */
