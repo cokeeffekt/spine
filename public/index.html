@@ -23,6 +23,7 @@
       }
       $store.auth.loggedIn = true
       $store.app.view = 'library'
+      history.replaceState({ view: 'library' }, '')
       // D-14: Proactively cache all cover art for offline availability
       Alpine.store('downloads').cacheAllCovers($store.library.books)
       // Quirk 1: restore last-played book position without auto-playing
@@ -74,6 +75,7 @@
               $store.auth.username = username
               $store.auth.role = data.role
               $store.app.view = 'library'
+              history.replaceState({ view: 'library' }, '')
               await $store.library.loadBooks()
             } else if (res.status === 401) {
               error = 'Invalid username or password.'
@@ -272,7 +274,7 @@
     <!-- ========== Book Detail View ========== -->
     <div x-show="$store.app.view === 'detail'" class="detail-container">
 
-      <button class="back-link" @click="$store.app.view = 'library'">← Library</button>
+      <button class="back-link" @click="history.back()">← Library</button>
 
       <template x-if="$store.library.selectedBook">
         <div>
@@ -560,6 +562,13 @@
     window.addEventListener('online', () => { if (window.Alpine) Alpine.store('app').isOffline = false })
     window.addEventListener('offline', () => { if (window.Alpine) Alpine.store('app').isOffline = true })
 
+    // Android back gesture: push history state on view transitions so back swipe doesn't exit the app
+    window.addEventListener('popstate', (e) => {
+      if (!window.Alpine) return
+      const view = (e.state && e.state.view) || 'library'
+      Alpine.store('app').view = view
+    })
+
     document.addEventListener('alpine:init', () => {
       Alpine.store('auth', {
         loggedIn: false,
@@ -607,6 +616,7 @@
             }
             this.selectedBook = await res.json()
             Alpine.store('app').view = 'detail'
+            history.pushState({ view: 'detail' }, '')
           } catch (e) {
             console.error('Failed to load book:', e)
           }
