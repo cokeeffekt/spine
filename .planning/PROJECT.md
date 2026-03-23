@@ -90,4 +90,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-22 after Phase 05 completion — Lock-Screen Controls: Media Session metadata, chapter-scoped position state, seekto handler, cleanup on logout*
+*Last updated: 2026-03-23 after Phase 06 completion — Offline Download: whole-book download with streaming progress, CacheFirst+RangeRequests for offline playback with seeking, proactive cover caching, download filter and storage management*
