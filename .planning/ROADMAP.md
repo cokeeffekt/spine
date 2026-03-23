@@ -36,7 +36,10 @@
   3. Admin can delete a user account; deleting the last admin account is blocked with an error
   4. Admin can reset another user's password from the admin page
   5. Non-admin users cannot access the admin page or any admin API endpoint
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 07-01-PLAN.md — Backend: schema migration, GET /api/users, last-admin guard, login timestamp
+- [ ] 07-02-PLAN.md — Frontend: admin view HTML, CSS, and user verification
 
 ### Phase 8: Library Rescan UI
 **Goal**: Admin can trigger a library rescan from the browser with live progress and Audnexus metadata enrichment
@@ -95,7 +98,7 @@
 | 4. Player and Progress | v1.0 | 3/3 | Complete | 2026-03-23 |
 | 5. Lock-Screen Controls | v1.0 | 2/2 | Complete | 2026-03-23 |
 | 6. Offline Download | v1.0 | 3/3 | Complete | 2026-03-23 |
-| 7. Admin User Management | v1.1 | 0/? | Not started | - |
+| 7. Admin User Management | v1.1 | 0/2 | Not started | - |
 | 8. Library Rescan UI | v1.1 | 0/? | Not started | - |
 | 9. Progress Sync and Tiles | v1.1 | 0/? | Not started | - |
 | 10. MP3 Folder Scanner | v1.1 | 0/? | Not started | - |
