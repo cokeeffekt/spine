@@ -22,6 +22,8 @@
 - [ ] **LIBM-05**: MP3 files within a folder are naturally sorted (track ordering)
 - [ ] **LIBM-06**: MP3 metadata derived from ffprobe ID3 tags with folder/file name fallback
 - [ ] **LIBM-07**: Multi-disc subfolders are flattened into a single book
+- [ ] **LIBM-08**: Scanner enriches book metadata (description, cover, narrator, series) from Audnexus API when local data is incomplete
+- [ ] **LIBM-09**: Enrichment is non-blocking — scan completes even if Audnexus is unreachable
 
 ### Progress
 
@@ -56,28 +58,30 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ADMIN-01 | — | — |
-| ADMIN-02 | — | — |
-| ADMIN-03 | — | — |
-| ADMIN-04 | — | — |
-| LIBM-01 | — | — |
-| LIBM-02 | — | — |
-| LIBM-03 | — | — |
-| LIBM-04 | — | — |
-| LIBM-05 | — | — |
-| LIBM-06 | — | — |
-| LIBM-07 | — | — |
-| PROG-05 | — | — |
-| PROG-06 | — | — |
-| PROG-07 | — | — |
-| PROG-08 | — | — |
-| PLAY-09 | — | — |
-| PLAY-10 | — | — |
+| ADMIN-01 | Phase 7 | Pending |
+| ADMIN-02 | Phase 7 | Pending |
+| ADMIN-03 | Phase 7 | Pending |
+| ADMIN-04 | Phase 7 | Pending |
+| LIBM-01 | Phase 8 | Pending |
+| LIBM-02 | Phase 8 | Pending |
+| LIBM-03 | Phase 8 | Pending |
+| LIBM-04 | Phase 10 | Pending |
+| LIBM-05 | Phase 10 | Pending |
+| LIBM-06 | Phase 10 | Pending |
+| LIBM-07 | Phase 10 | Pending |
+| PROG-05 | Phase 9 | Pending |
+| PROG-06 | Phase 9 | Pending |
+| PROG-07 | Phase 9 | Pending |
+| PROG-08 | Phase 9 | Pending |
+| PLAY-09 | Phase 11 | Pending |
+| PLAY-10 | Phase 11 | Pending |
+| LIBM-08 | Phase 8 | Pending |
+| LIBM-09 | Phase 8 | Pending |
 
 **Coverage:**
-- v1.1 requirements: 17 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 17
+- v1.1 requirements: 19 total
+- Mapped to phases: 19
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-23*
