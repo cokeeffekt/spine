@@ -114,13 +114,18 @@
       </div>
     </div>
 
-    <!-- ========== Top Navigation Bar (library + detail views) ========== -->
-    <nav class="nav-bar" x-show="$store.app.view === 'library' || $store.app.view === 'detail'">
+    <!-- ========== Top Navigation Bar (library + detail + admin views) ========== -->
+    <nav class="nav-bar" x-show="$store.app.view === 'library' || $store.app.view === 'detail' || $store.app.view === 'admin'">
       <span class="nav-brand">Spine</span>
       <div class="nav-right">
         <span class="offline-indicator" x-show="$store.app.isOffline" title="You are offline">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0119 12.55"/><path d="M5 12.55a10.94 10.94 0 015.17-2.39"/><path d="M10.71 5.05A16 16 0 0122.56 9"/><path d="M1.42 9a15.91 15.91 0 014.7-2.88"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
         </span>
+        <a class="nav-admin-link"
+           x-show="$store.auth.role === 'admin'"
+           :class="{ 'nav-active': $store.app.view === 'admin' }"
+           @click.prevent="$store.app.view = 'admin'"
+           href="#">Users</a>
         <span class="nav-username" x-text="$store.auth.username"></span>
         <button class="nav-logout" @click="(async () => {
           await fetch('/auth/logout', { method: 'POST' })
@@ -377,6 +382,239 @@
         </div>
       </template>
 
+    </div>
+
+    <!-- ========== Admin View ========== -->
+    <div x-show="$store.app.view === 'admin'"
+         class="admin-container"
+         x-data="{
+           users: [],
+           loading: false,
+           statusMsg: '',
+           createForm: { username: '', password: '', role: 'user', error: '', submitting: false },
+           resetState: {},
+           deleteState: {},
+           async loadUsers() {
+             this.loading = true
+             try {
+               const res = await fetch('/api/users')
+               if (res.ok) {
+                 this.users = await res.json()
+                 this.resetState = {}
+                 this.deleteState = {}
+               }
+             } finally { this.loading = false }
+           },
+           isCurrentUser(user) { return user.username === $store.auth.username },
+           isOnlyAdmin(user) {
+             return user.role === 'admin' && this.users.filter(u => u.role === 'admin').length === 1
+           },
+           formatDate(str) {
+             if (!str) return 'Never'
+             return new Date(str).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+           },
+           formatDateTime(str) {
+             if (!str) return 'Never'
+             return new Date(str).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+           },
+           async createUser() {
+             this.createForm.error = ''
+             if (!this.createForm.username || !this.createForm.password) return
+             this.createForm.submitting = true
+             try {
+               const res = await fetch('/api/users', {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({
+                   username: this.createForm.username,
+                   password: this.createForm.password,
+                   role: this.createForm.role
+                 })
+               })
+               if (res.ok) {
+                 const created = this.createForm.username
+                 this.createForm.username = ''
+                 this.createForm.password = ''
+                 this.createForm.role = 'user'
+                 this.statusMsg = `User ${created} created.`
+                 setTimeout(() => { this.statusMsg = '' }, 3000)
+                 await this.loadUsers()
+               } else {
+                 const err = await res.json().catch(() => ({}))
+                 if (res.status === 409) {
+                   this.createForm.error = 'Username already exists. Choose a different username.'
+                 } else {
+                   this.createForm.error = err.error || 'Failed to create user. Try again.'
+                 }
+               }
+             } finally { this.createForm.submitting = false }
+           },
+           startDelete(user) {
+             this.deleteState = { ...this.deleteState, [user.id]: { confirming: true, timer: null } }
+             const timer = setTimeout(() => {
+               this.deleteState = { ...this.deleteState, [user.id]: { confirming: false, timer: null } }
+             }, 3000)
+             this.deleteState[user.id].timer = timer
+           },
+           async confirmDelete(user) {
+             if (this.deleteState[user.id]?.timer) clearTimeout(this.deleteState[user.id].timer)
+             this.deleteState = { ...this.deleteState, [user.id]: { confirming: false, deleting: true } }
+             try {
+               const res = await fetch('/api/users/' + user.id, { method: 'DELETE' })
+               if (res.ok) {
+                 this.statusMsg = `User ${user.username} deleted.`
+                 setTimeout(() => { this.statusMsg = '' }, 3000)
+                 await this.loadUsers()
+               } else {
+                 const err = await res.json().catch(() => ({}))
+                 this.statusMsg = err.error || 'Failed to delete user. Try again.'
+                 setTimeout(() => { this.statusMsg = '' }, 3000)
+                 this.deleteState = { ...this.deleteState, [user.id]: { confirming: false, deleting: false } }
+               }
+             } catch {
+               this.statusMsg = 'Failed to delete user. Try again.'
+               setTimeout(() => { this.statusMsg = '' }, 3000)
+               this.deleteState = { ...this.deleteState, [user.id]: { confirming: false, deleting: false } }
+             }
+           },
+           openReset(user) {
+             this.resetState = { ...this.resetState, [user.id]: { open: true, password: '', saving: false, error: '' } }
+           },
+           cancelReset(user) {
+             this.resetState = { ...this.resetState, [user.id]: null }
+           },
+           async saveReset(user) {
+             const state = this.resetState[user.id]
+             if (!state?.password) return
+             this.resetState = { ...this.resetState, [user.id]: { ...state, saving: true } }
+             try {
+               const res = await fetch('/api/users/' + user.id + '/password', {
+                 method: 'PATCH',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ password: state.password })
+               })
+               if (res.ok) {
+                 this.resetState = { ...this.resetState, [user.id]: null }
+                 this.statusMsg = `Password reset for ${user.username}.`
+                 setTimeout(() => { this.statusMsg = '' }, 3000)
+               } else {
+                 this.resetState = { ...this.resetState, [user.id]: { ...state, saving: false, error: 'Reset failed. Try again.' } }
+               }
+             } catch {
+               this.resetState = { ...this.resetState, [user.id]: { ...state, saving: false, error: 'Reset failed. Try again.' } }
+             }
+           }
+         }"
+         x-init="loadUsers()">
+
+      <h1 class="admin-heading">Users</h1>
+
+      <!-- Status message -->
+      <div class="admin-status" x-show="statusMsg" x-text="statusMsg" role="status" aria-live="polite"></div>
+
+      <!-- Create user form -->
+      <form class="admin-form" @submit.prevent="createUser()">
+        <div class="admin-form-row">
+          <input class="form-input" type="text" placeholder="Username" required
+                 x-model="createForm.username" aria-label="Username">
+          <input class="form-input" type="password" placeholder="Password" required
+                 x-model="createForm.password" aria-label="Password">
+          <select class="form-input admin-role-select" x-model="createForm.role" aria-label="Role">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button class="btn-primary" type="submit" :disabled="createForm.submitting"
+                  x-text="createForm.submitting ? 'Creating...' : 'Create User'"></button>
+        </div>
+        <div class="admin-form-error" x-show="createForm.error" x-text="createForm.error"></div>
+      </form>
+
+      <!-- User table -->
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th scope="col">Username</th>
+            <th scope="col">Role</th>
+            <th scope="col">Created</th>
+            <th scope="col">Last Login</th>
+            <th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Loading state -->
+          <tr x-show="loading">
+            <td colspan="5" style="text-align:center; color:var(--color-text-muted)">Loading users...</td>
+          </tr>
+          <!-- Empty state -->
+          <tr x-show="!loading && users.length === 0">
+            <td colspan="5" style="text-align:center">
+              <strong>No users yet.</strong><br>
+              <span style="color:var(--color-text-muted)">Create the first user account using the form above.</span>
+            </td>
+          </tr>
+          <!-- User rows -->
+          <template x-for="user in users" :key="user.id">
+            <tr>
+              <td>
+                <span x-text="user.username"></span>
+                <span class="admin-badge-you" x-show="isCurrentUser(user)">(You)</span>
+              </td>
+              <td><span class="admin-badge-role" x-text="user.role"></span></td>
+              <td style="color:var(--color-text-muted)" x-text="formatDate(user.created_at)"></td>
+              <td style="color:var(--color-text-muted)" x-text="formatDateTime(user.last_login_at)"></td>
+              <td>
+                <!-- Actions: normal state (not in reset mode) -->
+                <span x-show="!resetState[user.id]?.open">
+                  <!-- Reset password button — not shown on own row -->
+                  <button class="btn-action" @click="openReset(user)"
+                          x-show="!isCurrentUser(user)">Reset Password</button>
+
+                  <!-- Delete button -->
+                  <template x-if="!isCurrentUser(user)">
+                    <span>
+                      <!-- Disabled: last admin -->
+                      <button class="btn-delete btn-delete-disabled"
+                              x-show="isOnlyAdmin(user)"
+                              disabled
+                              title="Cannot delete the last admin"
+                              aria-label="Cannot delete the last admin">Delete</button>
+
+                      <!-- Normal delete flow -->
+                      <span x-show="!isOnlyAdmin(user)">
+                        <!-- Default state -->
+                        <button class="btn-delete"
+                                x-show="!deleteState[user.id]?.confirming && !deleteState[user.id]?.deleting"
+                                @click="startDelete(user)">Delete</button>
+                        <!-- Confirm state -->
+                        <button class="btn-delete btn-delete-confirm"
+                                x-show="deleteState[user.id]?.confirming"
+                                @click="confirmDelete(user)"
+                                aria-pressed="true">Confirm?</button>
+                        <!-- Deleting state -->
+                        <button class="btn-delete" disabled
+                                x-show="deleteState[user.id]?.deleting">Deleting...</button>
+                      </span>
+                    </span>
+                  </template>
+                </span>
+
+                <!-- Reset password inline form -->
+                <span x-show="resetState[user.id]?.open">
+                  <input class="admin-reset-input" type="password" placeholder="New password"
+                         x-model="resetState[user.id].password"
+                         :aria-label="'New password for ' + user.username">
+                  <button class="btn-action" @click="saveReset(user)"
+                          :disabled="resetState[user.id]?.saving"
+                          x-text="resetState[user.id]?.saving ? 'Saving...' : 'Save Password'"></button>
+                  <button class="btn-action" @click="cancelReset(user)">Keep Password</button>
+                  <span class="admin-form-error" x-show="resetState[user.id]?.error"
+                        x-text="resetState[user.id]?.error"></span>
+                </span>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
     </div>
 
   </div><!-- end session-check wrapper -->
