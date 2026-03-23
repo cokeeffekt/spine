@@ -89,6 +89,7 @@ export interface NormalizedMetadata {
   language: string | null;
   duration_sec: number | null;
   codec: string | null;
+  asin: string | null;
   has_cover_stream: boolean;
   chapters: NormalizedChapter[];
 }

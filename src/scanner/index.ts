@@ -1,9 +1,11 @@
 import * as fs from "fs";
 import { Database } from "bun:sqlite";
+import { EventEmitter } from 'events'
 import { probeFile, normalizeMetadata } from "./probe.js";
 import { extractCoverArt, resolveCoverPath } from "./cover.js";
 import { walkLibrary } from "./walk.js";
 import { applyFallbackMetadata } from "./fallback.js";
+import { fetchAudnexusBook, applyEnrichment } from "./enrichment.js";
 import type { NormalizedMetadata } from "../types.js";
 
 /**
@@ -12,6 +14,18 @@ import type { NormalizedMetadata } from "../types.js";
  * In tests, can be replaced with a fixture factory.
  */
 export type ProbeFn = (filePath: string) => Promise<NormalizedMetadata>;
+
+export type ScanProgressEvent =
+  | { type: 'start'; total: number }
+  | { type: 'file'; scanned: number; total: number; current: string }
+  | { type: 'done'; newBooks: number; updatedBooks: number; missing: number; notEnriched: number }
+
+export type ProgressCallback = (event: ScanProgressEvent) => void
+
+// Module-level scan lock and event bridge
+let _scanInProgress = false
+export const scanEmitter = new EventEmitter()
+export function isScanRunning(): boolean { return _scanInProgress }
 
 const defaultProbeFn: ProbeFn = async (filePath: string): Promise<NormalizedMetadata> => {
   const output = await probeFile(filePath);
@@ -99,12 +113,12 @@ export async function scanFile(
       file_path, file_mtime, file_size, is_missing,
       title, author, narrator, series_title, series_position,
       description, genre, publisher, year, language,
-      duration_sec, codec, cover_path, updated_at
+      duration_sec, codec, cover_path, asin, updated_at
     ) VALUES (
       ?, ?, ?, 0,
       ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?,
-      ?, ?, ?, datetime('now')
+      ?, ?, ?, ?, datetime('now')
     )
     ON CONFLICT(file_path) DO UPDATE SET
       file_mtime      = excluded.file_mtime,
@@ -122,6 +136,7 @@ export async function scanFile(
       language        = excluded.language,
       duration_sec    = excluded.duration_sec,
       codec           = excluded.codec,
+      asin            = excluded.asin,
       updated_at      = datetime('now')
   `);
 
@@ -141,7 +156,8 @@ export async function scanFile(
     metadata.language,
     metadata.duration_sec,
     metadata.codec,
-    null  // cover_path updated below after we have the book ID
+    null,  // cover_path updated below after we have the book ID
+    metadata.asin
   );
 
   // Get book_id for chapter insertion and cover extraction
@@ -194,13 +210,16 @@ export async function scanFile(
  * - Files not in current walk get is_missing=1 (D-03)
  * - Files that reappear get is_missing=0 via scanFile upsert (D-04)
  * - Concurrency limited to max 4 simultaneous ffprobe calls
+ * - Enrichment pass: fills metadata gaps from Audnexus for books with ASIN (D-08)
  *
  * @param probeFn - injectable for testing; defaults to real ffprobe
+ * @param onProgress - optional callback for real-time progress events
  */
 export async function scanLibrary(
   db: Database,
   libraryRoot: string,
-  probeFn: ProbeFn = defaultProbeFn
+  probeFn: ProbeFn = defaultProbeFn,
+  onProgress?: ProgressCallback
 ): Promise<void> {
   let paths: string[];
   try {
@@ -214,18 +233,24 @@ export async function scanLibrary(
 
   console.log(`[scanner] Scanning ${paths.length} .m4b files in ${libraryRoot}`);
 
+  // Emit start event
+  onProgress?.({ type: 'start', total: paths.length })
+
   // Semaphore: limit concurrency to 4
   const MAX_CONCURRENT = 4;
   const active = new Set<Promise<void>>();
-  let newOrUpdated = 0;
 
-  // Count rows before scanning to track new/updated
+  // Count rows before scanning to track new books
   const beforeCount = (
     db.query("SELECT COUNT(*) as cnt FROM books").get() as { cnt: number }
   ).cnt;
 
+  let scanned = 0;
+
   for (const filePath of paths) {
     const task = scanFile(db, filePath, probeFn).then(() => {
+      scanned++
+      onProgress?.({ type: 'file', scanned, total: paths.length, current: filePath })
       active.delete(task);
     });
     active.add(task);
@@ -241,7 +266,7 @@ export async function scanLibrary(
   const afterCount = (
     db.query("SELECT COUNT(*) as cnt FROM books").get() as { cnt: number }
   ).cnt;
-  newOrUpdated = afterCount - beforeCount;
+  const newBooks = afterCount - beforeCount;
 
   // Mark missing files — D-03
   // Files in DB but not in current walk → is_missing = 1
@@ -267,7 +292,52 @@ export async function scanLibrary(
     missingCount = result.changes;
   }
 
+  // Enrichment pass — only for books with ASIN and missing fields (D-08)
+  const enrichCandidates = db.query<{ id: number; asin: string }, []>(
+    `SELECT id, asin FROM books WHERE asin IS NOT NULL AND (
+      description IS NULL OR narrator IS NULL OR series_title IS NULL OR cover_path IS NULL
+    )`
+  ).all()
+
+  let notEnriched = 0
+  for (const candidate of enrichCandidates) {
+    const data = await fetchAudnexusBook(candidate.asin)
+    if (data) {
+      const applied = applyEnrichment(db, candidate.id, data)
+      if (!applied) notEnriched++
+    } else {
+      notEnriched++
+    }
+  }
+
+  // Books without ASIN that are also missing enrichable fields are counted as not enriched
+  const noAsinCount = (db.query<{ cnt: number }, []>(
+    `SELECT COUNT(*) as cnt FROM books WHERE asin IS NULL AND (
+      description IS NULL OR narrator IS NULL OR series_title IS NULL OR cover_path IS NULL
+    )`
+  ).get())?.cnt ?? 0
+  notEnriched += noAsinCount
+
   console.log(
-    `[scanner] Scan complete: ${paths.length} files found, ${newOrUpdated} new/updated, ${missingCount} marked missing`
+    `[scanner] Scan complete: ${paths.length} files found, ${newBooks} new, ${missingCount} marked missing`
   );
+
+  onProgress?.({ type: 'done', newBooks, updatedBooks: 0, missing: missingCount, notEnriched })
+}
+
+/**
+ * Run a library scan with the scan lock held.
+ * Guarantees lock release even if scanLibrary throws (try/finally).
+ * Bridges scan progress to the scanEmitter for SSE consumers.
+ */
+export async function runScan(db: Database, libraryRoot: string): Promise<void> {
+  _scanInProgress = true
+  try {
+    await scanLibrary(db, libraryRoot, defaultProbeFn, (event) => {
+      scanEmitter.emit('progress', event)
+      if (event.type === 'done') scanEmitter.emit('done')
+    })
+  } finally {
+    _scanInProgress = false
+  }
 }

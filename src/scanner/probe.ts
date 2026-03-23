@@ -85,6 +85,7 @@ export function normalizeMetadata(output: FfprobeOutput): NormalizedMetadata {
     language: normalizeTag(tags, "language"),
     duration_sec: isNaN(durationSec) ? null : durationSec,
     codec: audioStream?.codec_name ?? null,
+    asin: normalizeTag(tags, "asin", "ASIN", "audible_asin", "AUDIBLE_ASIN"),
     has_cover_stream,
     chapters,
   };

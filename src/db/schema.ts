@@ -65,4 +65,11 @@ export function initializeDatabase(db: Database): void {
   } catch {
     // Column already exists — safe to ignore
   }
+
+  // Migration: add asin column to books table for Audnexus enrichment
+  try {
+    db.exec(`ALTER TABLE books ADD COLUMN asin TEXT`)
+  } catch {
+    // Column already exists — safe to ignore
+  }
 }

@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { scanLibrary } from "./index.js";
+import { scanLibrary, isScanRunning } from "./index.js";
 
 let _watcherInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -20,6 +20,10 @@ export function startWatcher(db: Database, libraryRoot: string): void {
   const intervalMs = parseInt(process.env["SCAN_INTERVAL_MS"] ?? "300000", 10);
 
   _watcherInterval = setInterval(async () => {
+    if (isScanRunning()) {
+      console.log('[watcher] Skipping tick — manual scan in progress')
+      return
+    }
     console.log(`[watcher] Re-scanning library at ${new Date().toISOString()}`);
     try {
       await scanLibrary(db, libraryRoot);
