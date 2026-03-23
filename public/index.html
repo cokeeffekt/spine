@@ -18,6 +18,33 @@
       $store.app.view = 'library'
       // D-14: Proactively cache all cover art for offline availability
       Alpine.store('downloads').cacheAllCovers($store.library.books)
+      // Quirk 1: restore last-played book position without auto-playing
+      try {
+        const lastBookRaw = localStorage.getItem('spine-last-book')
+        if (lastBookRaw) {
+          const lastBook = JSON.parse(lastBookRaw)
+          const book = $store.library.books.find(b => b.id === lastBook.id)
+          if (book) {
+            const bookRes = await fetch('/api/books/' + book.id)
+            if (bookRes.ok) {
+              const fullBook = await bookRes.json()
+              Alpine.store('player').book = fullBook
+              const el = window._spineAudio
+              if (el) {
+                el.src = '/api/books/' + fullBook.id + '/audio'
+                el.addEventListener('canplay', () => {
+                  el.currentTime = lastBook.position || 0
+                  if (fullBook.chapters && fullBook.chapters.length > 0) {
+                    Alpine.store('player').currentChapterIdx = getCurrentChapterIdx(el.currentTime, fullBook.chapters)
+                  }
+                  // Do not auto-play — user taps play to resume
+                }, { once: true })
+                el.load()
+              }
+            }
+          }
+        }
+      } catch { /* non-fatal — missing localStorage or corrupt entry */ }
     }
   })()">
 
@@ -748,6 +775,13 @@
               updatedAt: Date.now()
             }
           )
+          // Track last-played book for session restore on page refresh
+          try {
+            localStorage.setItem('spine-last-book', JSON.stringify({
+              id: this.book.id,
+              position: this.currentTime
+            }))
+          } catch { /* localStorage may be unavailable (private mode, storage full) */ }
         },
 
         _startSaveInterval() {
