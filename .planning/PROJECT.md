@@ -21,6 +21,8 @@ All core functionality delivered:
 - Lock-screen controls via Media Session API
 - Offline download with Workbox CacheFirst + RangeRequestsPlugin
 - Dockerized single-container deployment
+- Admin user management with create/delete/password-reset
+- Admin-triggered library rescan with live SSE progress bar and Audnexus metadata enrichment
 
 **Outstanding:**
 - Phase 05 lock-screen UAT (5 items, requires Android device testing)
@@ -94,4 +96,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-23 — v1.1 milestone started*
+*Last updated: 2026-03-24 — Phase 8 (library rescan UI) complete*
