@@ -15,15 +15,15 @@
 
 ### Library Management
 
-- [ ] **LIBM-01**: Admin can trigger a library rescan from the browser UI
-- [ ] **LIBM-02**: Rescan shows live progress (files scanned / total) via SSE
-- [ ] **LIBM-03**: Concurrent rescans are prevented (scan-in-progress guard)
+- [x] **LIBM-01**: Admin can trigger a library rescan from the browser UI
+- [x] **LIBM-02**: Rescan shows live progress (files scanned / total) via SSE
+- [x] **LIBM-03**: Concurrent rescans are prevented (scan-in-progress guard)
 - [ ] **LIBM-04**: Scanner supports MP3 folders — a folder of .mp3 files is treated as one audiobook
 - [ ] **LIBM-05**: MP3 files within a folder are naturally sorted (track ordering)
 - [ ] **LIBM-06**: MP3 metadata derived from ffprobe ID3 tags with folder/file name fallback
 - [ ] **LIBM-07**: Multi-disc subfolders are flattened into a single book
-- [ ] **LIBM-08**: Scanner enriches book metadata (description, cover, narrator, series) from Audnexus API when local data is incomplete
-- [ ] **LIBM-09**: Enrichment is non-blocking — scan completes even if Audnexus is unreachable
+- [x] **LIBM-08**: Scanner enriches book metadata (description, cover, narrator, series) from Audnexus API when local data is incomplete
+- [x] **LIBM-09**: Enrichment is non-blocking — scan completes even if Audnexus is unreachable
 
 ### Progress
 
@@ -62,9 +62,9 @@
 | ADMIN-02 | Phase 7 | Complete |
 | ADMIN-03 | Phase 7 | Complete |
 | ADMIN-04 | Phase 7 | Complete |
-| LIBM-01 | Phase 8 | Pending |
-| LIBM-02 | Phase 8 | Pending |
-| LIBM-03 | Phase 8 | Pending |
+| LIBM-01 | Phase 8 | Complete |
+| LIBM-02 | Phase 8 | Complete |
+| LIBM-03 | Phase 8 | Complete |
 | LIBM-04 | Phase 10 | Pending |
 | LIBM-05 | Phase 10 | Pending |
 | LIBM-06 | Phase 10 | Pending |
@@ -75,8 +75,8 @@
 | PROG-08 | Phase 9 | Pending |
 | PLAY-09 | Phase 11 | Pending |
 | PLAY-10 | Phase 11 | Pending |
-| LIBM-08 | Phase 8 | Pending |
-| LIBM-09 | Phase 8 | Pending |
+| LIBM-08 | Phase 8 | Complete |
+| LIBM-09 | Phase 8 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 19 total

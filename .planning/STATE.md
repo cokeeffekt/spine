@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Admin Tools & Library Improvements
-status: Ready to plan
-stopped_at: Phase 8 context gathered
-last_updated: "2026-03-23T13:31:47.312Z"
+status: Ready to execute
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-23T14:42:32.315Z"
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 4
+  completed_plans: 3
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** A household can browse their audiobook library, listen with full player controls, and pick up exactly where they left off — on any device, even offline.
-**Current focus:** Phase 07 — admin-user-management
+**Current focus:** Phase 08 — library-rescan-ui
 
 ## Current Position
 
-Phase: 8
-Plan: Not started
+Phase: 08 (library-rescan-ui) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -43,6 +43,7 @@ Plan: Not started
 *Updated after each plan completion*
 | Phase 07-admin-user-management P01 | 2 | 1 tasks | 6 files |
 | Phase 07-admin-user-management P02 | 90 | 3 tasks | 3 files |
+| Phase 08-library-rescan-ui P01 | 7 | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -62,6 +63,9 @@ Key decisions affecting v1.1:
 - [Phase 07-admin-user-management]: Alpine x-if required (not x-show) for containers with deeply nested reactive state — x-show does not gate expression evaluation
 - [Phase 07-admin-user-management]: Accordion create form pattern: collapsed by default under '+ New User' toggle to reduce admin page visual noise
 - [Phase 07-admin-user-management]: sessionStorage view persistence: $store.app.view saved/restored on init so admin page survives page reloads
+- [Phase 08-01]: Scan lock is module-level boolean set by runScan with try/finally guarantee — no DB round-trip on isScanRunning checks
+- [Phase 08-01]: scanEmitter EventEmitter decouples scanner from HTTP layer — scanner emits progress/done events, SSE route subscribes
+- [Phase 08-01]: Enrichment fills null fields only (D-11) — never overwrites existing non-null data, preserves manually set metadata
 
 ### Pending Todos
 
@@ -74,6 +78,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T13:31:47.310Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-library-rescan-ui/08-CONTEXT.md
+Last session: 2026-03-23T14:42:32.313Z
+Stopped at: Completed 08-01-PLAN.md
+Resume file: None
