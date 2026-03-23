@@ -100,6 +100,20 @@ describe("POST /auth/login", () => {
     expect(res.status).toBe(400);
   });
 
+  it("sets last_login_at after successful login", async () => {
+    const app = await makeAuthApp();
+    await app.request('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'testuser', password: 'testpass' })
+    });
+    const user = db.query<{ last_login_at: string | null }, [string]>(
+      'SELECT last_login_at FROM users WHERE username = ?'
+    ).get('testuser');
+    expect(user).not.toBeNull();
+    expect(user!.last_login_at).not.toBeNull();
+  });
+
   it("stores session row with expires_at ~30 days in the future", async () => {
     const app = await makeAuthApp();
     const before = Date.now();

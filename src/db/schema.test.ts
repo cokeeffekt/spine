@@ -77,4 +77,11 @@ describe("SQLite schema", () => {
     expect(result?.foreign_keys).toBe(1);
     db.close();
   });
+
+  it("creates users table with last_login_at column", () => {
+    const db = openDatabase(":memory:");
+    const columns = db.query<{ name: string }, []>("PRAGMA table_info(users)").all();
+    expect(columns.map(c => c.name)).toContain("last_login_at");
+    db.close();
+  });
 });
