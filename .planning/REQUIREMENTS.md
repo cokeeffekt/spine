@@ -8,10 +8,10 @@
 
 ### Admin
 
-- [ ] **ADMIN-01**: Admin can view a list of all user accounts in the browser
-- [ ] **ADMIN-02**: Admin can create a new user account from the admin UI
-- [ ] **ADMIN-03**: Admin can delete a user account (with last-admin guard preventing lockout)
-- [ ] **ADMIN-04**: Admin can reset another user's password from the admin UI
+- [x] **ADMIN-01**: Admin can view a list of all user accounts in the browser
+- [x] **ADMIN-02**: Admin can create a new user account from the admin UI
+- [x] **ADMIN-03**: Admin can delete a user account (with last-admin guard preventing lockout)
+- [x] **ADMIN-04**: Admin can reset another user's password from the admin UI
 
 ### Library Management
 
@@ -58,10 +58,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ADMIN-01 | Phase 7 | Pending |
-| ADMIN-02 | Phase 7 | Pending |
-| ADMIN-03 | Phase 7 | Pending |
-| ADMIN-04 | Phase 7 | Pending |
+| ADMIN-01 | Phase 7 | Complete |
+| ADMIN-02 | Phase 7 | Complete |
+| ADMIN-03 | Phase 7 | Complete |
+| ADMIN-04 | Phase 7 | Complete |
 | LIBM-01 | Phase 8 | Pending |
 | LIBM-02 | Phase 8 | Pending |
 | LIBM-03 | Phase 8 | Pending |

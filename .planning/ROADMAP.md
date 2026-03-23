@@ -38,7 +38,7 @@
   5. Non-admin users cannot access the admin page or any admin API endpoint
 **Plans**: 2 plans
 Plans:
-- [ ] 07-01-PLAN.md — Backend: schema migration, GET /api/users, last-admin guard, login timestamp
+- [x] 07-01-PLAN.md — Backend: schema migration, GET /api/users, last-admin guard, login timestamp
 - [ ] 07-02-PLAN.md — Frontend: admin view HTML, CSS, and user verification
 
 ### Phase 8: Library Rescan UI
@@ -98,7 +98,7 @@ Plans:
 | 4. Player and Progress | v1.0 | 3/3 | Complete | 2026-03-23 |
 | 5. Lock-Screen Controls | v1.0 | 2/2 | Complete | 2026-03-23 |
 | 6. Offline Download | v1.0 | 3/3 | Complete | 2026-03-23 |
-| 7. Admin User Management | v1.1 | 0/2 | Not started | - |
+| 7. Admin User Management | v1.1 | 1/2 | In Progress|  |
 | 8. Library Rescan UI | v1.1 | 0/? | Not started | - |
 | 9. Progress Sync and Tiles | v1.1 | 0/? | Not started | - |
 | 10. MP3 Folder Scanner | v1.1 | 0/? | Not started | - |
