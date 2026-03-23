@@ -1,12 +1,12 @@
 importScripts('https://storage.googleapis.com/workbox-cdn/releases/7.4.0/workbox-sw.js')
 
 workbox.precaching.precacheAndRoute([
-  { url: '/index.html', revision: '2' },
-  { url: '/style.css', revision: '2' },
+  { url: '/index.html', revision: '3' },
+  { url: '/style.css', revision: '3' },
   { url: '/manifest.json', revision: '1' },
   { url: '/icons/icon-192.png', revision: '1' },
   { url: '/icons/icon-512.png', revision: '1' },
-  { url: '/player-utils.js', revision: '2' }
+  { url: '/player-utils.js', revision: '3' }
 ])
 
 // IMPORTANT: Instantiate at top level so workbox-sw auto-loads modules (Pitfall 2)
