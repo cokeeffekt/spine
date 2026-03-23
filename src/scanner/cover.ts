@@ -82,11 +82,23 @@ export function resolveCoverPath(
     }
   }
 
-  // Legacy fallback: cover.jpg beside the .m4b (may exist from earlier scans)
-  const legacyCoverPath = path.join(path.dirname(m4bPath), "cover.jpg");
-  if (fs.existsSync(legacyCoverPath)) {
-    return legacyCoverPath;
+  // Fallback: look for an image file in the same folder as the .m4b
+  const dir = path.dirname(m4bPath);
+  const imageNames = ["cover.jpg", "cover.jpeg", "cover.png", "folder.jpg", "folder.png"];
+  for (const name of imageNames) {
+    const p = path.join(dir, name);
+    if (fs.existsSync(p)) return p;
   }
+
+  // Last resort: any .jpg/.jpeg/.png in the folder
+  try {
+    const files = fs.readdirSync(dir);
+    for (const f of files) {
+      if (/\.(jpe?g|png)$/i.test(f)) {
+        return path.join(dir, f);
+      }
+    }
+  } catch {}
 
   return null;
 }
