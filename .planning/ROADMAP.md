@@ -19,7 +19,7 @@
 **Milestone Goal:** Give the admin control over users and the library, show reading progress on grid tiles, sync progress across devices, and support MP3 audiobook folders.
 
 - [x] **Phase 7: Admin User Management** - Admin can manage all user accounts from the browser (completed 2026-03-23)
-- [ ] **Phase 8: Library Rescan UI** - Admin can trigger and monitor a library rescan from the browser
+- [x] **Phase 8: Library Rescan UI** - Admin can trigger and monitor a library rescan from the browser (completed 2026-03-24)
 - [ ] **Phase 9: Progress Sync and Tiles** - Progress syncs to the server and shows as percentage on grid tiles
 - [ ] **Phase 10: MP3 Folder Scanner** - MP3 folder collections are scanned and cataloged as audiobooks
 - [ ] **Phase 11: MP3 Player Support** - MP3 books play correctly with track-boundary handling
@@ -102,7 +102,7 @@ Plans:
 | 5. Lock-Screen Controls | v1.0 | 2/2 | Complete | 2026-03-23 |
 | 6. Offline Download | v1.0 | 3/3 | Complete | 2026-03-23 |
 | 7. Admin User Management | v1.1 | 2/2 | Complete   | 2026-03-23 |
-| 8. Library Rescan UI | v1.1 | 1/2 | In Progress|  |
+| 8. Library Rescan UI | v1.1 | 2/2 | Complete   | 2026-03-24 |
 | 9. Progress Sync and Tiles | v1.1 | 0/? | Not started | - |
 | 10. MP3 Folder Scanner | v1.1 | 0/? | Not started | - |
 | 11. MP3 Player Support | v1.1 | 0/? | Not started | - |
