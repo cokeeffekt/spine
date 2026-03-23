@@ -45,8 +45,8 @@ export async function scanFile(
 
   // D-02: incremental scan — skip if mtime and size unchanged
   const existing = db
-    .query("SELECT file_mtime, file_size, is_missing FROM books WHERE file_path = ?")
-    .get(filePath) as { file_mtime: number; file_size: number; is_missing: number } | null;
+    .query("SELECT id, file_mtime, file_size, is_missing, cover_path FROM books WHERE file_path = ?")
+    .get(filePath) as { id: number; file_mtime: number; file_size: number; is_missing: number; cover_path: string | null } | null;
 
   if (existing && existing.file_mtime === mtime && existing.file_size === size) {
     // D-04: If the file was previously marked missing but is now present, unflag it
@@ -55,7 +55,27 @@ export async function scanFile(
         "UPDATE books SET is_missing = 0, updated_at = datetime('now') WHERE file_path = ?"
       ).run(filePath);
     }
-    return; // unchanged — skip ffprobe
+
+    // Re-attempt cover extraction if cover_path is missing (e.g. first scan wrote to read-only mount)
+    if (!existing.cover_path) {
+      let coverPath: string | null = null;
+      try {
+        const output = await probeFile(filePath);
+        const meta = normalizeMetadata(output);
+        if (meta.has_cover_stream) {
+          coverPath = await extractCoverArt(filePath, true, existing.id);
+        } else {
+          coverPath = resolveCoverPath(filePath, false, existing.id);
+        }
+      } catch {
+        coverPath = resolveCoverPath(filePath, false, existing.id);
+      }
+      if (coverPath) {
+        db.prepare("UPDATE books SET cover_path = ? WHERE id = ?").run(coverPath, existing.id);
+      }
+    }
+
+    return; // unchanged — skip full re-scan
   }
 
   let metadata: NormalizedMetadata;
