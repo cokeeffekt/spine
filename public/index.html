@@ -388,9 +388,9 @@
 
     </div>
 
-    <!-- ========== Admin View ========== -->
-    <div x-show="$store.app.view === 'admin'"
-         class="admin-container"
+    <!-- ========== Admin View — x-if keeps entire component out of DOM when not active ========== -->
+    <template x-if="$store.app.view === 'admin'">
+    <div class="admin-container"
          x-data="{
            users: [],
            loading: false,
@@ -634,6 +634,7 @@
         </tbody>
       </table>
     </div>
+    </template>
 
   </div><!-- end session-check wrapper -->
 
