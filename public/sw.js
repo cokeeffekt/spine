@@ -1,5 +1,9 @@
 importScripts('https://storage.googleapis.com/workbox-cdn/releases/7.4.0/workbox-sw.js')
 
+// Activate new service worker immediately — don't wait for old tabs to close
+self.addEventListener('install', () => self.skipWaiting())
+workbox.core.clientsClaim()
+
 workbox.precaching.precacheAndRoute([
   { url: '/index.html', revision: '3' },
   { url: '/style.css', revision: '3' },
