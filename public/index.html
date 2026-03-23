@@ -24,7 +24,7 @@
       $store.auth.loggedIn = true
       const savedView = sessionStorage.getItem('spine-view')
       const restoreView = (savedView === 'admin' && $store.auth.role === 'admin') ? 'admin' : 'library'
-      $store.app.view = restoreView
+      $store.app.setView(restoreView)
       history.replaceState({ view: restoreView }, '')
       // D-14: Proactively cache all cover art for offline availability
       Alpine.store('downloads').cacheAllCovers($store.library.books)
@@ -76,7 +76,7 @@
               $store.auth.loggedIn = true
               $store.auth.username = username
               $store.auth.role = data.role
-              $store.app.view = 'library'
+              $store.app.setView('library')
               history.replaceState({ view: 'library' }, '')
               await $store.library.loadBooks()
             } else if (res.status === 401) {
@@ -118,7 +118,7 @@
 
     <!-- ========== Top Navigation Bar (library + detail + admin views) ========== -->
     <nav class="nav-bar" x-show="$store.app.view === 'library' || $store.app.view === 'detail' || $store.app.view === 'admin'">
-      <span class="nav-brand">Spine</span>
+      <a class="nav-brand" href="#" @click.prevent="$store.app.setView('library')">Spine</a>
       <div class="nav-right">
         <span class="offline-indicator" x-show="$store.app.isOffline" title="You are offline">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0119 12.55"/><path d="M5 12.55a10.94 10.94 0 015.17-2.39"/><path d="M10.71 5.05A16 16 0 0122.56 9"/><path d="M1.42 9a15.91 15.91 0 014.7-2.88"/><path d="M8.53 16.11a6 6 0 016.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
@@ -138,8 +138,7 @@
           $store.auth.loggedIn = false
           $store.auth.username = ''
           $store.auth.role = ''
-          sessionStorage.removeItem('spine-view')
-          $store.app.view = 'login'
+          $store.app.setView('login')
           $store.library.books = []
           $store.library.query = ''
           $store.library.selectedBook = null
@@ -162,6 +161,7 @@
             placeholder="Search by title or author…"
             x-model="$store.library.query"
             aria-label="Search library"
+            autocomplete="off"
           >
           <button
             class="search-clear"
@@ -819,7 +819,7 @@
     window.addEventListener('popstate', (e) => {
       if (!window.Alpine) return
       const view = (e.state && e.state.view) || 'library'
-      Alpine.store('app').view = view
+      Alpine.store('app').setView(view)
     })
 
     document.addEventListener('alpine:init', () => {
@@ -854,7 +854,7 @@
             const res = await fetch('/api/books')
             if (res.status === 401) {
               Alpine.store('auth').loggedIn = false
-              Alpine.store('app').view = 'login'
+              Alpine.store('app').setView('login')
               return
             }
             this.books = await res.json()
@@ -872,11 +872,11 @@
             const res = await fetch('/api/books/' + id)
             if (res.status === 401) {
               Alpine.store('auth').loggedIn = false
-              Alpine.store('app').view = 'login'
+              Alpine.store('app').setView('login')
               return
             }
             this.selectedBook = await res.json()
-            Alpine.store('app').view = 'detail'
+            Alpine.store('app').setView('detail')
             history.pushState({ view: 'detail' }, '')
           } catch (e) {
             console.error('Failed to load book:', e)
