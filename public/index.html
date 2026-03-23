@@ -22,8 +22,10 @@
         $store.auth.role = me.role
       }
       $store.auth.loggedIn = true
-      $store.app.view = 'library'
-      history.replaceState({ view: 'library' }, '')
+      const savedView = sessionStorage.getItem('spine-view')
+      const restoreView = (savedView === 'admin' && $store.auth.role === 'admin') ? 'admin' : 'library'
+      $store.app.view = restoreView
+      history.replaceState({ view: restoreView }, '')
       // D-14: Proactively cache all cover art for offline availability
       Alpine.store('downloads').cacheAllCovers($store.library.books)
       // Quirk 1: restore last-played book position without auto-playing
@@ -124,7 +126,7 @@
         <a class="nav-admin-link"
            x-show="$store.auth.role === 'admin'"
            :class="{ 'nav-active': $store.app.view === 'admin' }"
-           @click.prevent="$store.app.view = 'admin'"
+           @click.prevent="$store.app.setView('admin')"
            href="#">Users</a>
         <span class="nav-username" x-text="$store.auth.username"></span>
         <button class="nav-logout" @click="(async () => {
@@ -136,6 +138,7 @@
           $store.auth.loggedIn = false
           $store.auth.username = ''
           $store.auth.role = ''
+          sessionStorage.removeItem('spine-view')
           $store.app.view = 'login'
           $store.library.books = []
           $store.library.query = ''
@@ -391,6 +394,7 @@
            users: [],
            loading: false,
            statusMsg: '',
+           showCreateForm: false,
            createForm: { username: '', password: '', role: 'user', error: '', submitting: false },
            resetState: {},
            deleteState: {},
@@ -436,6 +440,7 @@
                  this.createForm.username = ''
                  this.createForm.password = ''
                  this.createForm.role = 'user'
+                 this.showCreateForm = false
                  this.statusMsg = `User ${created} created.`
                  setTimeout(() => { this.statusMsg = '' }, 3000)
                  await this.loadUsers()
@@ -512,13 +517,23 @@
       <!-- Status message -->
       <div class="admin-status" x-show="statusMsg" x-text="statusMsg" role="status" aria-live="polite"></div>
 
-      <!-- Create user form -->
-      <form class="admin-form" @submit.prevent="createUser()">
+      <!-- Create user accordion -->
+      <button class="btn-toggle-form" @click="showCreateForm = !showCreateForm; createForm.error = ''"
+              x-text="showCreateForm ? '− Cancel' : '+ New User'"
+              type="button"></button>
+
+      <!-- Create user form (collapsed by default) -->
+      <form class="admin-form" @submit.prevent="createUser()" x-show="showCreateForm" x-transition autocomplete="off">
+        <!-- Hidden dummy inputs to discourage browser autofill -->
+        <input type="text" style="display:none" aria-hidden="true" tabindex="-1">
+        <input type="password" style="display:none" aria-hidden="true" tabindex="-1">
         <div class="admin-form-row">
           <input class="form-input" type="text" placeholder="Username" required
-                 x-model="createForm.username" aria-label="Username">
+                 x-model="createForm.username" aria-label="Username"
+                 autocomplete="off">
           <input class="form-input" type="password" placeholder="Password" required
-                 x-model="createForm.password" aria-label="Password">
+                 x-model="createForm.password" aria-label="Password"
+                 autocomplete="new-password">
           <select class="form-input admin-role-select" x-model="createForm.role" aria-label="Role">
             <option value="user">User</option>
             <option value="admin">Admin</option>
@@ -816,7 +831,15 @@
 
       Alpine.store('app', {
         view: 'login',
-        isOffline: !navigator.onLine
+        isOffline: !navigator.onLine,
+        setView(v) {
+          this.view = v
+          if (v === 'admin') {
+            sessionStorage.setItem('spine-view', 'admin')
+          } else {
+            sessionStorage.removeItem('spine-view')
+          }
+        }
       })
 
       Alpine.store('library', {
