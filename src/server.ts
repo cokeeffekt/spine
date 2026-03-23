@@ -47,14 +47,17 @@ if (process.env["NODE_ENV"] !== "test") {
   Bun.serve({
     fetch: app.fetch,
     port,
+    idleTimeout: 255,
   });
 
   (async () => {
     // Bootstrap admin account from env vars on empty DB (AUTH-06)
     await bootstrapAdmin(db);
 
+    console.log(`[server] Starting initial library scan...`);
     try {
       await scanLibrary(db, libraryRoot);
+      console.log(`[server] Initial library scan complete`);
     } catch (err) {
       console.warn(
         `[server] Initial scan failed (library root may not exist yet): ${(err as Error).message}`

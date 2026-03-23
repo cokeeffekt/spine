@@ -403,20 +403,12 @@
            async startScan() {
              this.scanError = ''
              this.scanSummary = null
-             const res = await fetch('/api/scan', { method: 'POST' })
-             if (res.status === 409) {
-               this.scanError = 'A scan is already in progress.'
-               return
-             }
-             if (!res.ok) {
-               this.scanError = 'Failed to start scan.'
-               return
-             }
              this.scanning = true
              this.scanScanned = 0
              this.scanTotal = 0
              this.scanCurrent = ''
 
+             // Connect SSE FIRST so listener is ready before scan emits events
              const es = new EventSource('/api/scan/progress')
              this._scanEs = es
 
@@ -446,6 +438,24 @@
                }
                this._scanEs = null
                es.close()
+             }
+
+             // Wait for SSE connection to open, then trigger the scan
+             await new Promise(resolve => { es.onopen = resolve })
+             const res = await fetch('/api/scan', { method: 'POST' })
+             if (res.status === 409) {
+               this.scanning = false
+               this.scanError = 'A scan is already in progress.'
+               es.close()
+               this._scanEs = null
+               return
+             }
+             if (!res.ok) {
+               this.scanning = false
+               this.scanError = 'Failed to start scan.'
+               es.close()
+               this._scanEs = null
+               return
              }
            },
            users: [],

@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import { streamSSE } from 'hono/streaming'
 import { adminOnly } from '../middleware/auth.js'
 import type { AuthVariables } from '../middleware/auth.js'
 import { getDatabase } from '../db/index.js'
@@ -13,38 +12,73 @@ scan.use('/*', adminOnly)
 
 // POST /api/scan — trigger manual rescan (per D-03, D-07, LIBM-01)
 scan.post('/scan', async (c) => {
+  console.log(`[scan-route] POST /api/scan hit — isScanRunning=${isScanRunning()}`)
   if (isScanRunning()) {
+    console.log(`[scan-route] Returning 409 — scan already in progress`)
     return c.json({ error: 'Scan already in progress' }, 409)
   }
   const db = getDatabase()
   const libraryRoot = process.env['LIBRARY_ROOT'] ?? '/books'
+  console.log(`[scan-route] Starting runScan, libraryRoot=${libraryRoot}`)
+  console.log(`[scan-route] scanEmitter listener counts BEFORE runScan: progress=${scanEmitter.listenerCount('progress')}, done=${scanEmitter.listenerCount('done')}`)
   // Fire-and-forget — SSE stream carries progress (anti-pattern: do NOT await)
   runScan(db, libraryRoot).catch((err) => {
-    console.error('[scan] Manual scan failed:', err)
+    console.error('[scan-route] Manual scan failed:', err)
   })
+  console.log(`[scan-route] runScan fired (async), returning 200`)
   return c.json({ ok: true })
 })
 
-// GET /api/scan/progress — SSE stream (per D-04, D-05, LIBM-02)
+// GET /api/scan/progress — SSE stream using raw ReadableStream for Bun compatibility
 scan.get('/scan/progress', (c) => {
-  c.header('X-Accel-Buffering', 'no')  // Prevent nginx/Caddy buffering (Pitfall 1)
-  return streamSSE(c, async (stream) => {
-    const listener = async (event: ScanProgressEvent) => {
-      await stream.writeSSE({
-        data: JSON.stringify(event),
-        event: event.type,
-      })
-    }
-    scanEmitter.on('progress', listener)
-    stream.onAbort(() => scanEmitter.off('progress', listener))
-    await new Promise<void>((resolve) => {
-      const onDone = () => {
-        scanEmitter.off('progress', listener)
-        resolve()
+  console.log(`[sse] GET /api/scan/progress hit`)
+  console.log(`[sse] scanEmitter listener counts BEFORE attach: progress=${scanEmitter.listenerCount('progress')}, done=${scanEmitter.listenerCount('done')}`)
+  const stream = new ReadableStream({
+    start(controller) {
+      console.log(`[sse] ReadableStream start() called — attaching listeners`)
+      const encoder = new TextEncoder()
+      const write = (event: string, data: string) => {
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${data}\n\n`))
       }
+
+      const listener = (event: ScanProgressEvent) => {
+        console.log(`[sse] Received event: ${event.type}${event.type === 'file' ? ` (${event.scanned}/${event.total})` : ''}`)
+        try {
+          write(event.type, JSON.stringify(event))
+        } catch (err) {
+          console.log(`[sse] Write failed — client disconnected:`, err)
+          cleanup()
+        }
+      }
+
+      const onDone = () => {
+        console.log(`[sse] Scan done — closing SSE stream`)
+        cleanup()
+        try { controller.close() } catch { /* already closed */ }
+      }
+
+      const cleanup = () => {
+        scanEmitter.off('progress', listener)
+        scanEmitter.off('done', onDone)
+      }
+
+      scanEmitter.on('progress', listener)
       scanEmitter.once('done', onDone)
-      stream.onAbort(onDone)
-    })
+      console.log(`[sse] Listeners attached. progress=${scanEmitter.listenerCount('progress')}, done=${scanEmitter.listenerCount('done')}`)
+
+      // Send initial comment to flush the connection — triggers EventSource onopen
+      controller.enqueue(encoder.encode(': connected\n\n'))
+      console.log(`[sse] Sent initial flush comment`)
+    }
+  })
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
   })
 })
 

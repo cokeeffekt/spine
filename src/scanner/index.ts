@@ -292,6 +292,8 @@ export async function scanLibrary(
     missingCount = result.changes;
   }
 
+  console.log(`[scanner] File scan phase complete: ${paths.length} scanned, ${newBooks} new, ${missingCount} marked missing`)
+
   // Enrichment pass — only for books with ASIN and missing fields (D-08)
   const enrichCandidates = db.query<{ id: number; asin: string }, []>(
     `SELECT id, asin FROM books WHERE asin IS NOT NULL AND (
@@ -300,14 +302,23 @@ export async function scanLibrary(
   ).all()
 
   let notEnriched = 0
-  for (const candidate of enrichCandidates) {
-    const data = await fetchAudnexusBook(candidate.asin)
-    if (data) {
-      const applied = applyEnrichment(db, candidate.id, data)
-      if (!applied) notEnriched++
-    } else {
-      notEnriched++
+  if (enrichCandidates.length > 0) {
+    console.log(`[scanner] Enrichment: ${enrichCandidates.length} books with ASIN need metadata`)
+    for (let i = 0; i < enrichCandidates.length; i++) {
+      const candidate = enrichCandidates[i]
+      console.log(`[scanner] Enriching ${i + 1}/${enrichCandidates.length}: ASIN ${candidate.asin}`)
+      const data = await fetchAudnexusBook(candidate.asin)
+      if (data) {
+        const applied = applyEnrichment(db, candidate.id, data)
+        if (!applied) notEnriched++
+      } else {
+        console.log(`[scanner] Enrichment failed for ASIN ${candidate.asin} — skipping`)
+        notEnriched++
+      }
     }
+    console.log(`[scanner] Enrichment complete: ${enrichCandidates.length - notEnriched} enriched, ${notEnriched} failed/skipped`)
+  } else {
+    console.log(`[scanner] Enrichment: no candidates with ASIN and missing fields`)
   }
 
   // Books without ASIN that are also missing enrichable fields are counted as not enriched
@@ -319,7 +330,7 @@ export async function scanLibrary(
   notEnriched += noAsinCount
 
   console.log(
-    `[scanner] Scan complete: ${paths.length} files found, ${newBooks} new, ${missingCount} marked missing`
+    `[scanner] Scan complete: ${paths.length} files found, ${newBooks} new, ${missingCount} marked missing, ${notEnriched} not enriched`
   );
 
   onProgress?.({ type: 'done', newBooks, updatedBooks: 0, missing: missingCount, notEnriched })
@@ -331,13 +342,17 @@ export async function scanLibrary(
  * Bridges scan progress to the scanEmitter for SSE consumers.
  */
 export async function runScan(db: Database, libraryRoot: string): Promise<void> {
+  console.log(`[scan] runScan started, lock acquired`)
   _scanInProgress = true
   try {
     await scanLibrary(db, libraryRoot, defaultProbeFn, (event) => {
+      console.log(`[scan] progress event: ${event.type}${event.type === 'file' ? ` (${event.scanned}/${event.total})` : ''}`)
       scanEmitter.emit('progress', event)
       if (event.type === 'done') scanEmitter.emit('done')
     })
+    console.log(`[scan] runScan finished successfully`)
   } finally {
     _scanInProgress = false
+    console.log(`[scan] lock released`)
   }
 }
