@@ -393,7 +393,11 @@
           step="1"
           @input="$store.player.seek(($store.player.currentChapter ? $store.player.currentChapter.start_sec : 0) + parseFloat($event.target.value))"
           aria-label="Seek within chapter">
-        <span class="seek-time" x-text="formatTime($store.player.currentChapter ? ($store.player.currentChapter.end_sec - $store.player.currentChapter.start_sec) : $store.player.duration)"></span>
+        <span class="seek-time seek-time-remaining" x-text="'-' + formatTime(
+          $store.player.currentChapter
+            ? Math.max(0, $store.player.currentChapter.end_sec - $store.player.currentTime)
+            : Math.max(0, $store.player.duration - $store.player.currentTime)
+        )"></span>
       </div>
 
       <!-- Playback controls row -->

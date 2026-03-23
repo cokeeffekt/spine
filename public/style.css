@@ -677,6 +677,10 @@ body {
   text-align: center;
 }
 
+.seek-time-remaining {
+  opacity: 0.75;
+}
+
 .seek-bar {
   flex: 1;
   -webkit-appearance: none;
