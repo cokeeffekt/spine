@@ -57,12 +57,41 @@ All core functionality delivered:
 - Native mobile apps — PWA covers the use case
 - Transcoding — serve .m4b directly
 
+## Current Milestone: v1.1 Admin Tools & Library Improvements
+
+**Goal:** Give the admin control over users and the library, show reading progress in the UI, sync progress across devices, and support MP3 audiobook folders.
+
+**Target features:**
+- Admin UI for user creation/management (create, delete, reset passwords)
+- Admin-triggered library rescan from the browser
+- Reading progress indicator (%) on library grid tiles
+- Progress sync to backend (push local progress, fetch on resume, conflict handling)
+- MP3 folder support — scan folders of .mp3 files as audiobooks, derive metadata from folder/file names
+
 ## Context
 
 - Motivated by leaving Audible — user wants ownership and control
 - Household of a few people, each needing their own progress tracking
 - ffprobe is the standard tool for .m4b metadata and chapter markers
 - "Normalize once" philosophy: scan/extract at ingest time, not on every request
+- MP3 audiobook collections have inconsistent folder structures — scanner must handle multiple naming patterns
+
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd:transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd:complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
 
 ---
-*Last updated: 2026-03-23 — v1.0 milestone complete*
+*Last updated: 2026-03-23 — v1.1 milestone started*
