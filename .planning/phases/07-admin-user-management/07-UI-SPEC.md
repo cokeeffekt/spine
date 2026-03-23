@@ -90,7 +90,7 @@ Declared values (multiples of 4 only):
 - Active chapter highlight — existing player pattern, not admin scope
 
 **Destructive reserved for:**
-- The "Confirm delete?" button state (text color: `--color-error`, border: `--color-error`)
+- The "Confirm?" button state (text color: `--color-error`, border: `--color-error`)
 - Inline form error text (e.g., "Username already exists. Choose a different username.")
 
 **Disabled state (last-admin / self-row delete button):**
@@ -98,6 +98,8 @@ Declared values (multiples of 4 only):
 - Text: `#64748b` (existing `.btn-play-disabled` color)
 - `cursor: not-allowed`
 - No hover effect
+
+**Primary focal point:** The user table is the primary focal point of the admin view. The "Create User" button (accent background: `--color-accent`) is the primary action anchor on the page — it is the only element with accent background color, making it the visual entry point for the admin's first action.
 
 **Source:** `public/style.css` `:root`, `.btn-primary`, `.login-error`, `.btn-play-disabled`.
 
@@ -121,7 +123,7 @@ All components are hand-written HTML + CSS following existing patterns. No compo
 | `.admin-table td` | Body (16px/400) | Data cells, padding 8px 12px, border-bottom `var(--color-border)` |
 | `.admin-badge-you` | downloaded-badge concept | Small pill: "(You)" — bg `var(--color-accent)`, text white, font-size 12px, padding 2px 6px, border-radius 4px |
 | `.admin-badge-role` | `.filter-downloaded` pill shape | Role indicator pill: "admin" / "user" — bg `var(--color-surface)`, border `var(--color-border)`, font-size 12px |
-| `.btn-action` | `.nav-logout` (ghost button) | Table row secondary action buttons (Reset, Cancel) — no background, `var(--color-text-muted)`, 14px |
+| `.btn-action` | `.nav-logout` (ghost button) | Table row secondary action buttons (Reset Password, Cancel) — no background, `var(--color-text-muted)`, 14px |
 | `.btn-delete` | `.btn-action` + destructive color | Delete action button — `var(--color-text-muted)` default, `var(--color-error)` in confirm state |
 | `.btn-delete-confirm` | modifier on `.btn-delete` | Confirm state: border `var(--color-error)`, text `var(--color-error)`, bg none |
 | `.btn-delete-disabled` | `.btn-play-disabled` | Last-admin / self-row: greyed out, cursor not-allowed |
@@ -163,11 +165,11 @@ All components are hand-written HTML + CSS following existing patterns. No compo
 
 ### Reset Password Action (D-14, D-15)
 
-- Default state: "Reset" button (`.btn-action`) in Actions column.
-- Click: Actions column content replaces with inline password input + "Save" button + "Cancel" button. The Reset button disappears.
+- Default state: "Reset Password" button (`.btn-action`) in Actions column.
+- Click: Actions column content replaces with inline password input + "Save Password" button + "Cancel" button. The Reset Password button disappears.
 - Input: `type="password"`, placeholder "New password", `.admin-reset-input` (44px height, full width of Actions cell).
-- Save click: "Save" becomes "Saving..." (disabled). On success: form collapses back to "Reset" button, `statusMsg` sets to "Password reset for {username}".
-- Cancel click: collapses back to "Reset" button with no status message.
+- Save Password click: "Save Password" becomes "Saving..." (disabled). On success: form collapses back to "Reset Password" button, `statusMsg` sets to "Password reset for {username}".
+- Cancel click: collapses back to "Reset Password" button with no status message.
 - On error: inline error text in cell "Reset failed. Try again."
 
 ### Status Message
@@ -220,8 +222,8 @@ All components are hand-written HTML + CSS following existing patterns. No compo
 | Create success | "User {username} created." |
 | Delete confirm button | "Confirm?" |
 | Delete success | "User {username} deleted." |
-| Reset password button label | "Reset" |
-| Reset password save label | "Save" |
+| Reset password button label | "Reset Password" |
+| Reset password save label | "Save Password" |
 | Reset password cancel label | "Cancel" |
 | Reset success | "Password reset for {username}." |
 | Last-admin delete tooltip | "Cannot delete the last admin" |
