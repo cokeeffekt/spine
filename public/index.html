@@ -614,18 +614,20 @@
                   </template>
                 </span>
 
-                <!-- Reset password inline form -->
-                <span x-show="resetState[user.id]?.open">
-                  <input class="admin-reset-input" type="password" placeholder="New password"
-                         x-model="resetState[user.id].password"
-                         :aria-label="'New password for ' + user.username">
-                  <button class="btn-action" @click="saveReset(user)"
-                          :disabled="resetState[user.id]?.saving"
-                          x-text="resetState[user.id]?.saving ? 'Saving...' : 'Save Password'"></button>
-                  <button class="btn-action" @click="cancelReset(user)">Keep Password</button>
-                  <span class="admin-form-error" x-show="resetState[user.id]?.error"
-                        x-text="resetState[user.id]?.error"></span>
-                </span>
+                <!-- Reset password inline form — x-if keeps x-model out of DOM until state exists -->
+                <template x-if="resetState[user.id]?.open">
+                  <span>
+                    <input class="admin-reset-input" type="password" placeholder="New password"
+                           x-model="resetState[user.id].password"
+                           :aria-label="'New password for ' + user.username">
+                    <button class="btn-action" @click="saveReset(user)"
+                            :disabled="resetState[user.id]?.saving"
+                            x-text="resetState[user.id]?.saving ? 'Saving...' : 'Save Password'"></button>
+                    <button class="btn-action" @click="cancelReset(user)">Keep Password</button>
+                    <span class="admin-form-error" x-show="resetState[user.id]?.error"
+                          x-text="resetState[user.id]?.error"></span>
+                  </span>
+                </template>
               </td>
             </tr>
           </template>
