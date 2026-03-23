@@ -287,7 +287,7 @@ body {
 }
 
 .cover-container {
-  aspect-ratio: 2/3;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   border-radius: 8px 8px 0 0;
   position: relative;
@@ -350,7 +350,7 @@ body {
 }
 
 .skeleton-cover {
-  aspect-ratio: 2/3;
+  aspect-ratio: 1 / 1;
   background: var(--color-secondary);
 }
 
@@ -447,7 +447,7 @@ body {
 .detail-cover {
   width: 160px;
   min-width: 160px;
-  aspect-ratio: 2/3;
+  aspect-ratio: 1 / 1;
   border-radius: 8px;
   overflow: hidden;
 }
