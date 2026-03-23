@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Admin Tools & Library Improvements
-status: Ready to execute
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-03-23T14:42:32.315Z"
+status: Checkpoint pending — human-verify
+stopped_at: "08-02 Task 2: human-verify checkpoint"
+last_updated: "2026-03-24T00:00:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 1
@@ -66,6 +66,8 @@ Key decisions affecting v1.1:
 - [Phase 08-01]: Scan lock is module-level boolean set by runScan with try/finally guarantee — no DB round-trip on isScanRunning checks
 - [Phase 08-01]: scanEmitter EventEmitter decouples scanner from HTTP layer — scanner emits progress/done events, SSE route subscribes
 - [Phase 08-01]: Enrichment fills null fields only (D-11) — never overwrites existing non-null data, preserves manually set metadata
+- [Phase 08-02]: x-show (not x-if) used for tab panels — preserves reactive DOM state when switching tabs (Pitfall 6)
+- [Phase 08-02]: EventSource es.close() called inside done handler — prevents onerror reconnect loop (Pitfall 2)
 
 ### Pending Todos
 
@@ -78,6 +80,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-23T14:42:32.313Z
-Stopped at: Completed 08-01-PLAN.md
+Last session: 2026-03-24T00:00:00.000Z
+Stopped at: "08-02 Task 2: human-verify checkpoint — awaiting admin visual verification"
 Resume file: None
