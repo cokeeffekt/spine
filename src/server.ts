@@ -10,6 +10,7 @@ import userRoutes from "./routes/users.js";
 import bookRoutes from "./routes/books.js";
 import audioRoutes from "./routes/audio.js";
 import coverRoutes from "./routes/cover.js";
+import scanRoutes from "./routes/scan.js";
 
 export const app = new Hono();
 
@@ -29,6 +30,7 @@ app.route("/api", userRoutes);
 app.route("/api", bookRoutes);
 app.route("/api", audioRoutes);
 app.route("/api", coverRoutes);
+app.route("/api", scanRoutes);
 
 // Static files — must come AFTER all API/auth routes (per D-20, Pitfall 2)
 app.use("/*", serveStatic({ root: "./public" }));
