@@ -44,7 +44,8 @@ export function initializeDatabase(db: Database): void {
       username      TEXT    NOT NULL UNIQUE,
       password_hash TEXT    NOT NULL,
       role          TEXT    NOT NULL DEFAULT 'user' CHECK(role IN ('admin', 'user')),
-      created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+      created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+      last_login_at TEXT
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
@@ -57,4 +58,11 @@ export function initializeDatabase(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_sessions_user_id    ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
   `);
+
+  // Migration: add last_login_at column to existing databases
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN last_login_at TEXT`)
+  } catch {
+    // Column already exists — safe to ignore
+  }
 }

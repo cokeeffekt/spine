@@ -8,6 +8,18 @@ const users = new Hono<{ Variables: AuthVariables }>()
 // All user management is admin-only per D-07
 users.use('/*', adminOnly)
 
+// GET /api/users — list all users (per D-07, ADMIN-01)
+users.get('/users', (c) => {
+  const db = getDatabase()
+  const rows = db.query<{
+    id: number; username: string; role: string;
+    created_at: string; last_login_at: string | null
+  }, []>(
+    'SELECT id, username, role, created_at, last_login_at FROM users ORDER BY created_at ASC'
+  ).all()
+  return c.json(rows)
+})
+
 // POST /api/users — create a new user (per D-07, AUTH-01)
 users.post('/users', async (c) => {
   const body = await c.req.json().catch(() => null)
@@ -43,6 +55,21 @@ users.delete('/users/:id', (c) => {
   }
 
   const db = getDatabase()
+
+  // Last-admin guard (per D-16, ADMIN-03): prevent deleting the last admin
+  const target = db.query<{ role: string }, [number]>(
+    'SELECT role FROM users WHERE id = ?'
+  ).get(id)
+  if (!target) return c.json({ error: 'User not found' }, 404)
+  if (target.role === 'admin') {
+    const adminCount = db.query<{ n: number }, []>(
+      "SELECT COUNT(*) AS n FROM users WHERE role = 'admin'"
+    ).get()
+    if ((adminCount?.n ?? 0) <= 1) {
+      return c.json({ error: 'Cannot delete the last admin' }, 400)
+    }
+  }
+
   const result = db.query('DELETE FROM users WHERE id = ?').run(id)
   if (result.changes === 0) return c.json({ error: 'User not found' }, 404)
 

@@ -32,6 +32,9 @@ auth.post('/login', async (c) => {
     token, user.id, expiresAt.toISOString()
   )
 
+  // Track last login time (per D-06, ADMIN-01)
+  db.query("UPDATE users SET last_login_at = datetime('now') WHERE id = ?").run(user.id)
+
   const isProduction = process.env['NODE_ENV'] === 'production'
   setCookie(c, 'session', token, {
     httpOnly: true,
