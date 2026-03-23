@@ -987,6 +987,10 @@ body {
   white-space: nowrap;
   flex-shrink: 0;
 }
+.filter-downloaded svg {
+  display: block;
+  flex-shrink: 0;
+}
 .filter-downloaded:hover { border-color: var(--color-accent); }
 .filter-downloaded.active {
   background: var(--color-accent);
