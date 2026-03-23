@@ -1029,3 +1029,233 @@ body {
 }
 
 /* filter-downloaded and storage-summary are flex siblings of .search-input-wrap */
+
+/* ============================================================
+   Admin Page
+   ============================================================ */
+
+.admin-container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+@media (min-width: 640px) {
+  .admin-container {
+    padding: 24px;
+  }
+}
+
+.admin-heading {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0 0 24px 0;
+}
+
+.admin-status {
+  background: var(--color-surface);
+  color: var(--color-text);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 16px;
+  margin-bottom: 16px;
+}
+
+.admin-form {
+  margin-bottom: 24px;
+}
+
+.admin-form-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-form-row .form-input {
+  flex: 1;
+  min-width: 120px;
+}
+
+.admin-role-select {
+  flex: 0 0 auto !important;
+  min-width: 80px !important;
+  width: auto;
+}
+
+.admin-form-row .btn-primary {
+  flex: 0 0 auto;
+  width: auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 639px) {
+  .admin-form-row {
+    flex-direction: column;
+  }
+  .admin-form-row .form-input,
+  .admin-form-row .btn-primary {
+    width: 100%;
+    flex: none;
+  }
+  .admin-role-select {
+    width: 100% !important;
+    flex: none !important;
+  }
+}
+
+.admin-form-error {
+  color: var(--color-error);
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-table th {
+  text-align: left;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-table td {
+  font-size: 16px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.admin-badge-you {
+  display: inline-block;
+  background: var(--color-accent);
+  color: #fff;
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.admin-badge-role {
+  display: inline-block;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.btn-action {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-family: var(--font-stack);
+}
+
+.btn-action:hover {
+  color: var(--color-text);
+}
+
+.btn-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-delete {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: var(--font-stack);
+}
+
+.btn-delete:hover {
+  color: var(--color-error);
+}
+
+.btn-delete-confirm {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
+.btn-delete-disabled {
+  background: var(--color-border);
+  color: #64748b;
+  cursor: not-allowed;
+  border: 1px solid transparent;
+}
+
+.btn-delete-disabled:hover {
+  color: #64748b;
+}
+
+.admin-reset-input {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  font-size: 16px;
+  padding: 8px 12px;
+  min-height: 44px;
+  font-family: var(--font-stack);
+  width: 160px;
+}
+
+.admin-reset-input:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+.nav-admin-link {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: var(--font-stack);
+  margin-right: 8px;
+}
+
+.nav-admin-link:hover {
+  color: var(--color-text);
+}
+
+.nav-admin-link.nav-active {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* Responsive: hide less important columns on mobile */
+@media (max-width: 639px) {
+  .admin-table th:nth-child(3),
+  .admin-table td:nth-child(3),
+  .admin-table th:nth-child(4),
+  .admin-table td:nth-child(4) {
+    display: none;
+  }
+
+  .admin-table td {
+    padding: 8px;
+  }
+
+  .admin-table th {
+    padding: 8px;
+  }
+
+  .admin-reset-input {
+    width: 100px;
+  }
+}
