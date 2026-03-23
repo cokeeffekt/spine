@@ -5,8 +5,8 @@ self.addEventListener('install', () => self.skipWaiting())
 workbox.core.clientsClaim()
 
 workbox.precaching.precacheAndRoute([
-  { url: '/index.html', revision: '3' },
-  { url: '/style.css', revision: '3' },
+  { url: '/index.html', revision: '4' },
+  { url: '/style.css', revision: '4' },
   { url: '/manifest.json', revision: '1' },
   { url: '/icons/icon-192.png', revision: '1' },
   { url: '/icons/icon-512.png', revision: '1' },
