@@ -52,7 +52,10 @@ Plans:
   4. After rescan completes, the library grid reflects any new or changed books
   5. Books with incomplete metadata are enriched from Audnexus (description, cover, narrator, series)
   6. Scan completes normally even if Audnexus is unreachable
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 08-01-PLAN.md — Backend: scanner progress callback, scan lock, SSE routes, Audnexus enrichment
+- [ ] 08-02-PLAN.md — Frontend: admin tab UI, Library tab with SSE progress bar, visual verification
 
 ### Phase 9: Progress Sync and Tiles
 **Goal**: Playback progress syncs to the server so users resume at the right position on any device, and each grid tile shows a reading percentage
@@ -99,7 +102,7 @@ Plans:
 | 5. Lock-Screen Controls | v1.0 | 2/2 | Complete | 2026-03-23 |
 | 6. Offline Download | v1.0 | 3/3 | Complete | 2026-03-23 |
 | 7. Admin User Management | v1.1 | 2/2 | Complete   | 2026-03-23 |
-| 8. Library Rescan UI | v1.1 | 0/? | Not started | - |
+| 8. Library Rescan UI | v1.1 | 0/2 | Not started | - |
 | 9. Progress Sync and Tiles | v1.1 | 0/? | Not started | - |
 | 10. MP3 Folder Scanner | v1.1 | 0/? | Not started | - |
 | 11. MP3 Player Support | v1.1 | 0/? | Not started | - |
