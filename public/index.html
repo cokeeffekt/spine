@@ -375,11 +375,16 @@
 
     <!-- Expanded panel (per D-02) -->
     <div class="player-expanded" x-show="$store.player.expanded" x-transition>
-      <!-- Seek bar (per D-09) -->
+      <!-- Seek bar — chapter-relative (per D-09, Quirk 2) -->
       <div class="player-seek-row">
-        <span class="seek-time" x-text="formatTime($store.player.currentTime)"></span>
-        <input type="range" class="seek-bar" min="0" :max="$store.player.duration" :value="$store.player.currentTime" step="1" @input="$store.player.seek(parseFloat($event.target.value))" aria-label="Seek">
-        <span class="seek-time" x-text="formatTime($store.player.duration)"></span>
+        <span class="seek-time" x-text="formatTime($store.player.currentChapter ? $store.player.currentTime - $store.player.currentChapter.start_sec : $store.player.currentTime)"></span>
+        <input type="range" class="seek-bar" min="0"
+          :max="$store.player.currentChapter ? ($store.player.currentChapter.end_sec - $store.player.currentChapter.start_sec) : $store.player.duration"
+          :value="$store.player.currentChapter ? ($store.player.currentTime - $store.player.currentChapter.start_sec) : $store.player.currentTime"
+          step="1"
+          @input="$store.player.seek(($store.player.currentChapter ? $store.player.currentChapter.start_sec : 0) + parseFloat($event.target.value))"
+          aria-label="Seek within chapter">
+        <span class="seek-time" x-text="formatTime($store.player.currentChapter ? ($store.player.currentChapter.end_sec - $store.player.currentChapter.start_sec) : $store.player.duration)"></span>
       </div>
 
       <!-- Playback controls row -->
