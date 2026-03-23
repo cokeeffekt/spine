@@ -349,6 +349,15 @@
   <div class="player-bar" x-data x-show="$store.player.book" x-init="$store.player.initAudio($refs.audio)">
     <audio x-ref="audio" preload="auto"></audio>
 
+    <!-- Thin chapter progress bar at top of collapsed player -->
+    <div class="player-progress-strip">
+      <div class="player-progress-fill" :style="'width:' + (
+        $store.player.currentChapter
+          ? Math.round(Math.max(0, Math.min(1, ($store.player.currentTime - $store.player.currentChapter.start_sec) / ($store.player.currentChapter.end_sec - $store.player.currentChapter.start_sec))) * 100)
+          : ($store.player.duration > 0 ? Math.round($store.player.currentTime / $store.player.duration * 100) : 0)
+      ) + '%'"></div>
+    </div>
+
     <!-- Collapsed bar (per D-01): play/pause, title, chapter, time, expand toggle -->
     <div class="player-collapsed" @click="$store.player.expanded = !$store.player.expanded">
       <button class="player-btn" @click.stop="$store.player.togglePlay()" :aria-label="$store.player.playing ? 'Pause' : 'Play'">
