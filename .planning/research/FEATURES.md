@@ -1,192 +1,294 @@
-# Feature Research
+# Feature Landscape: Spine v1.1
 
-**Domain:** Self-hosted audiobook PWA (Audible replacement)
-**Researched:** 2026-03-22
-**Confidence:** HIGH (cross-verified against Audible, Audiobookshelf, community self-hosting reports)
+**Domain:** Self-hosted audiobook platform — admin tools, progress sync, MP3 folder support, UI improvements
+**Researched:** 2026-03-23
+**Milestone Context:** v1.1 adds administrative control, cross-device progress, MP3 scanning, and library grid progress indicators to an already-shipped v1.0 product.
 
 ---
 
-## Feature Landscape
+## Existing v1.0 Baseline (do not re-implement)
 
-### Table Stakes (Users Expect These)
+These are already shipped. Documented here to clarify dependencies.
 
-These come from the Audible baseline and community self-hosting reports. If Spine is missing any of these, it will feel like a downgrade — not a replacement.
+| Already Built | Notes |
+|---------------|-------|
+| Auth (Argon2id, session cookies, admin/user roles) | `POST /api/users`, `DELETE /api/users/:id`, `PATCH /api/users/:id/password` all exist at the API level |
+| .m4b library scanning + ffprobe metadata extraction | `scanLibrary()` + incremental mtime/size check |
+| Library grid, book detail, audio player | Alpine.js, no build step |
+| Per-user progress in IndexedDB (local-first) | Stored under username-scoped keys |
+| Offline download with Workbox CacheFirst | Whole-book downloads |
+| Lock-screen controls via Media Session API | |
+| Fallback metadata from `metadata.json` + folder name | `applyFallbackMetadata()` |
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Library browse view with cover art | Every audiobook app has this; cover art is how users identify books | LOW | Grid + list toggle is standard; cover extracted from .m4b at scan time |
-| Audio playback with background support | Core function; background audio is table stakes on mobile | LOW | HTML5 `<audio>` with `play()` suspended/resumed; must not pause when screen locks |
-| Playback speed control (0.5x–3.0x) | Audible supports 0.5x–3.5x; heavy listeners live at 1.5x–2x | LOW | Per-book memory is a usability improvement, not required for v1 |
-| +30s / -30s skip buttons | Universal in every audiobook app; users have muscle memory for these | LOW | Configurable skip intervals are a v1.x enhancement |
-| Chapter navigation | .m4b files embed chapters; users expect to see and jump to them | MEDIUM | Requires ffprobe extraction at scan time; chapter list UI in player |
-| Resume from last position | The single most important playback feature; losing position is unforgivable | MEDIUM | Requires persistent progress storage; IndexedDB for local-first |
-| Offline playback of downloaded books | Stated project requirement; offline is a primary motivation for leaving Audible | HIGH | Full book download via Cache Storage + IndexedDB; Service Worker intercepts requests |
-| Lock-screen / notification playback controls | On Android/iOS, users control audio from notification tray without unlocking | MEDIUM | Media Session API; supports play/pause/seek/chapter; well-supported in 2026 |
-| Per-user progress isolation | Household use: each person has their own position in each book | MEDIUM | Requires auth + user-scoped progress records |
-| Login / authentication | Multi-user household needs real accounts, not just name-picker | MEDIUM | Username/password + session tokens; bcrypt hashing |
-| PWA installability (Add to Home Screen) | Users expect app-like experience; browser tab feels provisional | LOW | Web App Manifest + Service Worker registration; one-time setup |
-| Search / filter library | Even a 50-book library becomes navigable with search | LOW | Client-side filter on loaded library data is sufficient for small household |
+**Critical gap in v1.0:** The admin user management API endpoints exist but there is NO admin UI in the browser. Users must be managed via raw HTTP calls. This is the primary gap the admin UI feature closes.
 
-### Differentiators (Competitive Advantage)
+---
 
-These are features that make Spine better than Audible for this specific use case, or features that self-hosted platforms typically do better because there's no commercial incentive against them.
+## Table Stakes
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Local-first progress (offline writes) | Progress saves even with no network; sync is a bonus not a requirement | MEDIUM | IndexedDB as source of truth; sync to backend is additive; Audible loses progress on network failures |
-| Zero vendor lock-in | Users own their library and data; no subscription expiry | LOW | Architecture decision, not a feature to build — but worth surfacing in UX copy |
-| Per-book speed memory | Remembers that you listen to fiction at 1.0x and non-fiction at 1.8x | LOW | Store speed per-book-per-user in progress record alongside position |
-| "End of chapter" sleep timer | Pause at the end of the current chapter rather than mid-sentence | MEDIUM | Requires knowing current chapter end time; available from extracted chapter data |
-| Progress sync conflict resolution | When local and server differ, show both and let user choose | MEDIUM | Relevant when same user listens on two offline devices; prevents silent data loss |
-| Clean chapter scrubber | Visual timeline showing chapter boundaries; tap to jump | MEDIUM | SVG or canvas progress bar with chapter markers overlaid |
-| Keyboard / media-key support on desktop | Desktop users expect spacebar to pause, arrow keys to seek | LOW | Media Session API covers media keys; spacebar/arrow binding in player component |
+Features users of self-hosted media software expect. Missing = product feels incomplete or broken.
 
-### Anti-Features (Commonly Requested, Often Problematic)
+| Feature | Why Expected | Complexity | Dependencies |
+|---------|--------------|------------|--------------|
+| Admin UI: list all users | Every admin tool (Jellyfin, Audiobookshelf, Plex) shows a user roster | Low | Existing `GET /api/users` endpoint (needs to be added — currently only create/delete/patch exist) |
+| Admin UI: create user | Core account management; APIs exist, UI does not | Low | `POST /api/users` (exists) |
+| Admin UI: delete user | Core account management; APIs exist, UI does not | Low | `DELETE /api/users/:id` (exists) |
+| Admin UI: reset password | Household admins need to recover locked-out users | Low | `PATCH /api/users/:id/password` (exists) |
+| Admin-triggered library rescan | Users add books to the folder; need browser-level "refresh" without SSHing into the container | Low-Medium | `scanLibrary()` (exists); needs a `POST /api/admin/rescan` endpoint + button in UI |
+| Reading progress % on library tiles | Audible, Libby, and every audiobook app shows this — absence is jarring | Low | Progress must come from somewhere; currently IndexedDB only (local) — reading from server after sync, or from local IndexedDB on same device |
+| Progress sync to server | "Pick up where you left off on any device" is the core value promise; without server sync this only works per-device | Medium | Requires new `user_progress` table in SQLite and new API endpoints |
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Real-time progress sync (WebSocket push) | "I want my position to update instantly on all devices" | Adds persistent connection complexity, server-side event broadcasting, conflict handling — all for marginal gain in a household of 3-4 people | Manual sync on resume: fetch server position when app comes back online, merge with local |
-| Per-chapter offline downloads | "I only want to download chapter 3" | Streaming .m4b by byte-range makes chapter segmentation complex; .m4b is a single file | Whole-book download is simpler and matches actual usage (users finish books) |
-| Transcoding / format conversion | "Can I add MP3 folders?" | Transcoding is a heavy server-side concern; multiplies edge cases; ffmpeg is complex | Scope to .m4b only; the user's entire library is already .m4b |
-| Social features (ratings, reviews, recommendations) | "It would be cool to see what my household thinks" | Scope creep; adds data model complexity; household of 3-4 doesn't need a social graph | Out of scope by design; maybe a simple "favorites" flag later |
-| Native mobile apps (iOS/Android) | "The PWA isn't as good as a real app" | Significant parallel codebase; App Store compliance overhead; PWA covers the gaps | Invest in PWA quality: Media Session API, offline download, installability — these close the gap |
-| Automatic metadata scraping from external sources | "Fetch cover art from Audible/Google Books automatically" | External API dependencies, rate limits, legal gray areas, maintenance burden | ffprobe extracts embedded metadata and cover art from .m4b at scan time — no external calls needed |
-| Reading/listening sync (Whispersync-style) | "Sync position between ebook and audiobook" | Requires an ebook reader component; doubles the scope | Out of scope; audiobook-only is the stated constraint |
-| Sleep timer with arbitrary durations | "I want exactly 23 minutes" | UI complexity for marginal gain | Fixed presets (5, 10, 15, 30, 60 min) plus "end of chapter" covers 95% of use |
+---
+
+## Differentiators
+
+Features that are valued but not universally expected in self-hosted tools at this scale.
+
+| Feature | Value Proposition | Complexity | Dependencies |
+|---------|-------------------|------------|--------------|
+| MP3 folder support | Expands the library to users with existing ripped MP3 collections — a very common format for books bought on CD or ripped from libraries | Medium-High | New scanner path; virtual chapter synthesis from files; ID3 tag reading via ffprobe |
+| Progress conflict resolution (last-write-wins with per-book granularity) | Users jumping between devices get the correct position without data loss | Low-Medium | Part of progress sync; handled at API level |
+| Rescan shows progress/count feedback | Admin knows the scan finished and how many books were found/updated | Low | Rescan endpoint; simple JSON response with counts already exists in `scanLibrary()` console.log |
+| Empty library state updated to mention rescan button | Discoverability; current empty state says "restart the scanner" — admin can now do it in the browser | Low | Admin UI rescan feature |
+
+---
+
+## Anti-Features
+
+Features to explicitly NOT build in v1.1.
+
+| Anti-Feature | Why Avoid | What to Do Instead |
+|--------------|-----------|-------------------|
+| Audiobookshelf-style per-library permissions / tag filtering | Overkill for a household of a few people; adds significant schema and UI complexity | Keep it binary: admin vs user; no per-library access control |
+| Guest accounts (read-only, no password change) | Not mentioned in v1.1 scope; adds a third role case to all auth middleware | Defer to v2 or never — household use case doesn't need it |
+| Real-time progress push (WebSockets / SSE) | Engineering cost is high; household scenario has at most 2-3 concurrent users with no real-time requirements | Periodic sync on play events is sufficient |
+| Automatic library rescans (cron / filesystem watcher) | `watcher.ts` exists but adds background complexity; admin-triggered is good enough for v1.1 | Admin button covers the use case; watcher is a v2 enhancement |
+| Per-chapter download granularity | PROJECT.md explicitly out-of-scope; whole-book downloads already work | Keep whole-book download as the model |
+| MP3 transcoding to m4b | Transcoding is out-of-scope and complex; serve MP3 files directly | Stream MP3 files like .m4b with HTTP range requests |
+| External metadata lookup (Audible API, OpenLibrary, etc.) | Internet dependency breaks the self-hosted/offline-capable promise; complex API integration | Rely on embedded tags + folder name fallback + metadata.json sidecar |
+| Upload via browser | PROJECT.md: library is filesystem-only | Document the volume mount workflow |
+
+---
+
+## Feature Deep Dives
+
+### Admin User Management UI
+
+**What the ecosystem does:** Audiobookshelf (the dominant self-hosted audiobook app) provides an admin UI that lists all users in a table, with inline actions to create, delete, reset passwords, and change roles. The pattern is a simple CRUD table — no complex modals or multi-step flows.
+
+**Expected behavior:**
+1. A "Users" or "Admin" section in the nav bar, visible only when `$store.auth.role === 'admin'`
+2. List of users: username, role, created date — rendered as a simple table or card list
+3. "Create user" form: username + password + role selector (admin/user)
+4. "Delete" action per user: confirm prompt to prevent accidental deletion; cannot delete self (API already enforces this)
+5. "Reset password" action per user: input for new password, submit
+6. Error feedback inline (username taken, user not found, etc.)
+
+**What's already built:** All four API endpoints exist. The UI is the gap.
+
+**Missing API endpoint:** `GET /api/users` (list all users) does not appear to exist yet in `src/routes/users.ts`. Must be added.
+
+**Complexity:** Low. Alpine.js `x-data` with fetch calls. No new backend complexity beyond the list endpoint.
+
+---
+
+### Admin-Triggered Library Rescan
+
+**What the ecosystem does:** Jellyfin and Audiobookshelf both provide a "Scan libraries" button in their admin dashboard. The pattern is: button click → POST request → server runs scan in background (or synchronously for small libraries) → success/failure feedback.
+
+**Expected behavior:**
+1. "Rescan Library" button in admin section
+2. POST to `POST /api/admin/rescan`
+3. Button shows loading state during scan
+4. On completion: show count of books found / new / updated / missing
+5. Library grid auto-refreshes (re-fetch `/api/books`) after rescan completes
+
+**Implementation note for Spine's scale:** For a household library of dozens to a few hundred books, a synchronous scan that holds the HTTP connection open is acceptable. The existing `scanLibrary()` already returns after completion. A background job queue is unnecessary at this scale.
+
+**Complexity:** Low-Medium. New route + wiring existing `scanLibrary()` + Alpine UI state for loading/results.
+
+---
+
+### Reading Progress Tiles (% indicator on library grid)
+
+**What the ecosystem does:** Audible, Libby, Audiobookshelf — all show a progress bar or percentage on each book tile in the library grid. The implementation is typically a thin colored bar at the bottom of the cover art, or a percentage label overlaid on the corner.
+
+**Expected behavior:**
+1. Each book tile shows a progress bar (0–100%) at the bottom of the cover image
+2. 0% books show no bar (or very faint bar); 100% books show a "finished" state (distinct color or checkmark)
+3. Progress data source: after sync is implemented, read from server; before sync, read from local IndexedDB
+
+**Implementation dependency:** The progress indicator has two states:
+- Pre-sync: Read from IndexedDB using the same key pattern the player uses (`spine-progress-{username}-{bookId}`)
+- Post-sync: Read from server progress API (v1.1 sync feature)
+
+Both can work. The IndexedDB approach can be shipped first (same milestone) and the server source can be layered in when sync lands.
+
+**Complexity:** Low (UI only). No backend required if reading IndexedDB. The `$store.player` already has progress logic; this reuses it for the grid display.
+
+---
+
+### Progress Sync to Server
+
+**What the ecosystem does:** Audiobookshelf uses per-user `mediaProgress` records with fields: `currentTime` (seconds), `duration` (seconds), `progress` (0–1 float), `isFinished`, `startedAt`, `lastUpdate`, `finishedAt`. Sync is triggered when a session closes or at play intervals.
+
+**Conflict resolution:** The industry-standard approach for position-based progress is Last-Write-Wins (LWW) using `lastUpdate` timestamp. This is:
+- Correct: listening position is monotonically increasing; the newer timestamp almost always represents the user's actual current position
+- Simple: no CRDT needed for a scalar value
+- What Audiobookshelf does: compare `lastUpdate`, accept whichever is newer
+
+**Expected behavior:**
+1. On play: fetch current server progress for the book; if server timestamp is newer than local, use server position
+2. During playback: push progress to server at an interval (every 10–30 seconds, same cadence as IndexedDB saves)
+3. On pause/stop/unload: push final position to server
+4. Conflict: last-write-wins by `updated_at` timestamp — no user-facing conflict UI needed
+
+**Data model (new SQLite table needed):**
+```sql
+CREATE TABLE user_progress (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  book_id     INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+  position_sec REAL   NOT NULL DEFAULT 0,
+  duration_sec REAL,
+  is_finished INTEGER NOT NULL DEFAULT 0,
+  updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_id, book_id)
+);
+```
+
+**API endpoints needed:**
+- `GET /api/progress/:bookId` — fetch current user's progress for one book
+- `PUT /api/progress/:bookId` — upsert progress (body: `{ position_sec, is_finished }`)
+- `GET /api/progress` — fetch all progress for current user (for library grid tiles)
+
+**Complexity:** Medium. Schema migration, three new routes, frontend sync logic in player store, conflict handling.
+
+**Dependency note:** IndexedDB remains the source of truth for offline playback. Server sync is additive — it supplements, not replaces, the local-first approach.
+
+---
+
+### MP3 Folder Support
+
+**What MP3 audiobook collections look like in the wild:**
+
+Real-world MP3 collections have inconsistent structure. The dominant naming patterns observed in audiobookshelf, Emby, and community forums:
+
+| Pattern | Example | How common |
+|---------|---------|------------|
+| Flat: all parts in one folder, folder = title | `Harry Potter and the Sorcerer's Stone/Part01.mp3` | Very common |
+| Author/Title hierarchy | `J.K. Rowling/Harry Potter/Part01.mp3` | Common |
+| Author/Series/Title hierarchy | `Sanderson/Cosmere/Mistborn/01.mp3` | Less common |
+| Numbered files, no ID3 tags | `01.mp3`, `02.mp3`, ... `47.mp3` | Common in ripped collections |
+| ID3 tagged with track numbers | Track 1 of 24, ID3 `TIT2`=title, `TPE1`=artist | Common in store-bought rips |
+| Mixed: some ID3, some filename only | — | Very common; scanners must handle gracefully |
+| Disc subfolders | `Disc 1/01.mp3`, `Disc 2/01.mp3` | Common for multi-disc books |
+
+**Expected scanner behavior:**
+
+1. **Folder = book boundary**: Each folder containing at least one .mp3 file is treated as one audiobook. This matches how both Emby and Audiobookshelf handle it.
+2. **File ordering**: Natural sort by filename is the primary ordering strategy (handles `ch01.mp3`…`ch09.mp3`…`ch10.mp3` correctly). Fall back to ID3 track number if available. Do NOT rely on filesystem FAT order.
+3. **Metadata extraction priority**:
+   - ID3 tags from the first file (title, artist/album artist, year, narrator from comment field)
+   - Folder name as title fallback (existing `applyFallbackMetadata` pattern extended to MP3)
+   - `metadata.json` sidecar (already supported pattern — extend to MP3 folders)
+4. **Chapter synthesis**: MP3 folders have no embedded chapter markers like .m4b. Each file = one chapter. Chapter title = ID3 `TIT2` tag or filename (stripped of leading numbers and extension). Chapter start/end = cumulative duration of preceding files.
+5. **Duration**: Sum of all per-file durations from ffprobe output.
+6. **Cover art**: Check for `folder.jpg`, `cover.jpg`, `cover.png` in the folder. If absent, extract from first MP3's `APIC` tag via ffprobe's `attached_pic` stream.
+7. **Disc subfolders**: Flatten subfolder contents into the parent book, ordered by subfolder name then filename.
+
+**Key pitfall — natural sort vs alphabetical sort:**
+
+`ch1.mp3`, `ch2.mp3`, `ch10.mp3` sorted alphabetically gives: `ch1`, `ch10`, `ch2`. Natural sort gives correct order. JavaScript's `localeCompare({ numeric: true })` handles this correctly without any extra library.
+
+```typescript
+files.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+```
+
+**ID3 fields used by ffprobe:**
+
+ffprobe reads ID3 tags from MP3 files via `-show_format -print_format json`. The relevant `format.tags` keys:
+- `title` — book title (from `TALB`/album or `TIT2`/track title — album tag is more reliable for audiobooks)
+- `artist` or `album_artist` — author
+- `album` — often the book title in properly tagged collections
+- `track` — track number (e.g., "3/24")
+- `date` — year
+- `comment` — sometimes narrator
+
+**What NOT to do with MP3:**
+- Do not attempt to merge MP3 files into a single audio stream — serve each file sequentially
+- Do not rely on `TIT2` for book title (it's usually the chapter title, not the book title — use `TALB`/album instead)
+- Do not assume all files in a folder belong to the same book if the folder has subdirectories — recurse correctly
+
+**Serving MP3 files:** The existing audio streaming route serves a single file with HTTP range requests. For MP3 multi-file books, the player needs to advance to the next file when the current one ends. This is a player-side concern, not a file-serving concern.
+
+**Complexity:** Medium-High. New scanner path for MP3; virtual chapter table from file list; player changes to advance between files; cover art resolution differs from .m4b.
 
 ---
 
 ## Feature Dependencies
 
 ```
-[Auth / User Accounts]
-    └──required by──> [Per-user Progress Tracking]
-                          └──required by──> [Progress Sync to Backend]
-                          └──enables──> [Resume from Last Position]
+Progress Tiles (grid UI)
+  └── depends on: Progress Sync (for cross-device accuracy)
+        └── depends on: new user_progress table + API routes
+        └── OR: can read from local IndexedDB (same-device, ship first)
 
-[Service Worker Registration]
-    └──required by──> [Offline Playback]
-                          └──required by──> [Whole-book Download]
-    └──required by──> [PWA Installability]
+Admin UI (User Management)
+  └── depends on: GET /api/users endpoint (missing, must add)
+  └── depends on: existing POST/DELETE/PATCH user endpoints (already exist)
 
-[.m4b Scan + ffprobe Extraction]
-    └──required by──> [Chapter Navigation]
-                          └──enables──> [End-of-Chapter Sleep Timer]
-                          └──enables──> [Chapter Scrubber UI]
-    └──required by──> [Library Browse with Cover Art]
-    └──required by──> [REST API (book details, streaming)]
+Admin UI (Rescan)
+  └── depends on: POST /api/admin/rescan route (new)
+  └── depends on: existing scanLibrary() function (already exists)
 
-[Media Session API]
-    └──enables──> [Lock-screen Controls]
-    └──enables──> [Keyboard / Media-key Support]
-
-[Progress Tracking (local IndexedDB)]
-    └──enables──> [Resume from Last Position]
-    └──enhances──> [Progress Sync to Backend]
-
-[REST API Streaming]
-    └──required by──> [Audio Playback]
-    └──required by──> [Chapter Navigation]
+MP3 Folder Support
+  └── depends on: extending walkLibrary() to include .mp3 folders
+  └── depends on: new probe path for ID3 tags vs MP4 tags
+  └── depends on: player changes to sequence multiple files
+  └── independent of: progress sync, admin UI
 ```
 
-### Dependency Notes
+---
 
-- **Auth requires nothing external** but must exist before per-user progress is meaningful. Build auth first even if a single admin account.
-- **Service Worker must be registered before** any offline feature works. Registering it is cheap; defer the full offline caching logic to a later phase.
-- **ffprobe extraction gates most UX quality.** Chapter navigation, accurate cover art, and proper duration all depend on solid scan-time extraction. This is the highest-risk foundational step.
-- **Local progress (IndexedDB) is independent of the backend.** Resume-from-position works fully offline before sync is implemented. Sync is additive.
-- **Media Session API enhances an already-working player.** It can be added in any phase after basic playback works.
+## MVP Recommendation
+
+**Phase order based on dependencies and risk:**
+
+1. **Admin UI (user management + rescan)** — Low complexity, high leverage. The API already exists. Add `GET /api/users`, add rescan route, build Alpine UI. No schema changes. Ships fast.
+
+2. **Progress tiles + Progress sync** — Progress tiles can ship with IndexedDB as the data source (same-device only). Progress sync adds the server layer. Both are in the same milestone; sync first enables correct tiles.
+
+3. **MP3 folder support** — Medium-high complexity, independent of the above. Requires new scanner code, player changes, and testing against messy real-world collections. Save for last within the milestone.
+
+**Defer:**
+- Real-time progress (WebSockets): household scale doesn't need it; periodic push on play events is sufficient
+- Guest accounts: not in v1.1 scope
+- Automatic rescan / filesystem watcher: `watcher.ts` exists but admin-triggered is enough for v1.1
 
 ---
 
-## MVP Definition
+## Confidence Assessment
 
-### Launch With (v1)
-
-The minimum that makes Spine feel like a real replacement rather than a prototype.
-
-- [ ] Library browse — grid with cover art, title, author, duration
-- [ ] In-browser audio player — play/pause, +30s/-30s, chapter list, speed control
-- [ ] Resume from last position — local-first via IndexedDB, per user
-- [ ] Auth — username/password login, per-user sessions
-- [ ] PWA installability — manifest + service worker shell
-- [ ] Lock-screen controls — Media Session API (play/pause/seek minimum)
-- [ ] Offline whole-book download — Cache Storage + IndexedDB for audio + metadata
-
-### Add After Validation (v1.x)
-
-- [ ] Optional progress sync to backend — when online, push local position; on resume, fetch server position and merge
-- [ ] Per-book speed memory — store speed alongside position in progress record
-- [ ] Sleep timer — fixed presets + end-of-chapter
-- [ ] Keyboard / media-key bindings on desktop
-- [ ] Chapter scrubber with boundary markers
-
-### Future Consideration (v2+)
-
-- [ ] Progress conflict resolution UI — for the edge case where the same user listened offline on two devices
-- [ ] Search and filter enhancements (genre, series, narrator) — requires richer metadata extraction
-- [ ] Admin library rescan trigger — if the book folder changes
-
----
-
-## Feature Prioritization Matrix
-
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Resume from last position | HIGH | MEDIUM | P1 |
-| Chapter navigation | HIGH | MEDIUM | P1 |
-| Playback speed control | HIGH | LOW | P1 |
-| Lock-screen controls (Media Session) | HIGH | MEDIUM | P1 |
-| Offline whole-book download | HIGH | HIGH | P1 |
-| Auth / per-user sessions | HIGH | MEDIUM | P1 |
-| Library browse with cover art | HIGH | LOW | P1 |
-| +30s / -30s skip | HIGH | LOW | P1 |
-| PWA installability | MEDIUM | LOW | P1 |
-| Progress sync to backend | MEDIUM | MEDIUM | P2 |
-| Per-book speed memory | MEDIUM | LOW | P2 |
-| Sleep timer | MEDIUM | MEDIUM | P2 |
-| Chapter scrubber UI | MEDIUM | MEDIUM | P2 |
-| Keyboard / media-key support | LOW | LOW | P2 |
-| Progress conflict resolution UI | LOW | HIGH | P3 |
-
-**Priority key:**
-- P1: Must have for launch — missing these = not a real Audible replacement
-- P2: Should have — add once core is proven stable
-- P3: Nice to have — defer until need is demonstrated
-
----
-
-## Competitor Feature Analysis
-
-| Feature | Audible | Audiobookshelf | Spine (our approach) |
-|---------|---------|----------------|----------------------|
-| Library browse | Grid + list, rich metadata | Grid + list, metadata scraping from external | Grid, metadata from .m4b embedded tags only |
-| Chapter navigation | Yes | Yes | Yes — from ffprobe extraction |
-| Playback speed | 0.5x–3.5x | Yes (range varies by client) | 0.5x–3.0x, per-book memory v1.x |
-| +30s / -30s skip | Yes | Yes, configurable | Yes, fixed at 30s for v1 |
-| Offline download | Yes (per-book) | Yes (per-book, native app) | Yes — whole-book via PWA Cache Storage |
-| Lock-screen controls | Yes (native app) | Yes (native app) | Yes — Media Session API in PWA |
-| Progress sync | Cloud, automatic | Server sync via native app | Local-first, optional manual sync |
-| Multi-user / household | 1 adult share only | Yes, full multi-user | Yes — core requirement |
-| Sleep timer | Yes, fixed presets | Yes | v1.x, end-of-chapter variant |
-| Metadata scraping | Automatic | External APIs (Audnexus, Google Books) | None — embedded .m4b metadata only |
-| Social / discovery | Limited | None | None by design |
-| PWA / web client | Basic web player | Yes (limited offline) | Yes, full offline PWA |
-| Format support | Proprietary | mp3, m4b, many more | .m4b only |
-| Cost | $15/month subscription | Free, self-hosted | Free, self-hosted |
+| Area | Confidence | Notes |
+|------|------------|-------|
+| Admin UI patterns | HIGH | Audiobookshelf docs + source reviewed; patterns are standard CRUD |
+| Progress sync data model | HIGH | Audiobookshelf API docs + general sync patterns; LWW is well-established |
+| MP3 folder naming patterns | MEDIUM | Community forums + Emby docs; real-world collections are inconsistent by nature |
+| MP3 chapter synthesis from files | MEDIUM | Well-understood approach but edge cases (disc folders, mixed tags) need implementation testing |
+| Progress tiles (IndexedDB read) | HIGH | Codebase reviewed; IndexedDB key pattern is known |
 
 ---
 
 ## Sources
 
-- [Audiobookshelf GitHub (advplyr/audiobookshelf)](https://github.com/advplyr/audiobookshelf) — feature set of the leading self-hosted alternative
-- [How Does Audible Work 2026 — MakeHeadway](https://makeheadway.com/blog/how-does-audible-work/) — Audible feature baseline
-- [Audible Review 2026: A Decade of Stagnation — UseBetterProducts](https://www.usebetterproducts.com/audible-review/) — what's table stakes vs. what's still missing
-- [Self-Hosted Audiobooks — Nathan Grigg, March 2025](https://nathangrigg.com/2025/03/self-hosted-audiobooks/) — household use case, motivations
-- [MediaSession API — MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/API/MediaSession) — lock-screen control implementation reference
-- [What PWA Can Do Today — whatpwacando.today](https://whatpwacando.today/audio/) — PWA audio capability status
-- [Best Audiobook Apps 2026 — BestApp.com](https://www.bestapp.com/best-audiobook-apps/) — industry feature standard
-
----
-*Feature research for: self-hosted audiobook PWA*
-*Researched: 2026-03-22*
+- [Audiobookshelf User Management Guide](https://www.audiobookshelf.org/guides/users/) — Admin UI patterns, role model
+- [Audiobookshelf Book Scanner Guide](https://www.audiobookshelf.org/guides/book-scanner/) — Folder naming, metadata priority
+- [Audiobookshelf Docs: Title/Author naming](https://www.audiobookshelf.org/docs/) — Folder structure conventions
+- [Audiobookshelf API — Playback & Progress Tracking (DeepWiki)](https://deepwiki.com/audiobookshelf/audiobookshelf-api-docs/3.6-playback-and-progress-tracking) — Progress data model, LWW conflict resolution
+- [Emby Audio Book Naming Documentation](https://emby.media/support/articles/Audio-Book-Naming.html) — MP3 folder structure patterns
+- [Offline Sync & Conflict Resolution Patterns (Sachith, Feb 2026)](https://www.sachith.co.uk/offline-sync-conflict-resolution-patterns-architecture-trade%E2%80%91offs-practical-guide-feb-19-2026/) — LWW for scalar values
+- [ID3 Tag Standard (Wikipedia)](https://en.wikipedia.org/wiki/ID3) — Track number field for ordering
+- [Mp3tag Community — Natural Sorting](https://community.mp3tag.de/t/use-natural-sorting/50751) — Natural sort vs alphabetical ordering problem
+- [APLN — Introduction to ID3 Tags in Audiobooks](https://apln.ca/introduction-to-id3-tags-in-audiobooks/) — ID3 field conventions for audiobooks
+- Spine v1.0 codebase reviewed: `src/routes/users.ts`, `src/scanner/index.ts`, `src/scanner/fallback.ts`, `src/db/schema.ts`, `public/index.html`

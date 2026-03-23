@@ -1,313 +1,327 @@
-# Pitfalls Research
+# Domain Pitfalls
 
-**Domain:** Self-hosted audiobook PWA (.m4b streaming, offline, Media Session API)
-**Researched:** 2026-03-22
-**Confidence:** HIGH (range requests, service worker caching, Media Session API — all verified against official Workbox docs, web.dev, MDN); MEDIUM (iOS limitations, m4b edge cases — verified against multiple sources); LOW (Alpine.js specific patterns — minimal domain-specific sources found)
+**Domain:** Self-hosted audiobook platform — v1.1 additions
+**Project:** Spine
+**Researched:** 2026-03-23
+**Scope:** Admin UI, library rescan, progress sync, MP3 folder scanning, reading progress tiles
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Service Worker Cannot Serve Audio Range Requests Without Explicit Plugin
-
-**What goes wrong:**
-The browser's `<audio>` element uses HTTP range requests to seek and scrub through audio. When a service worker intercepts these requests using a standard cache-first strategy, it returns a full 200 response instead of a 206 Partial Content response with proper `Content-Range` headers. The browser sees no 206 and loses the ability to seek — the scrubber freezes or breaks entirely. This is worse on Safari, which makes an initial `bytes=0-1` probe to detect range support before playback even begins; if that probe fails, Safari refuses to play the cached file at all.
-
-**Why it happens:**
-Workbox's default caching strategies (CacheFirst, NetworkFirst, etc.) do not handle range request headers. Developers add audio caching without reading the Workbox media documentation and assume a CacheFirst strategy "just works" for audio. Everything works fine in the browser's network tab (the full file was cached), but seeking is silently broken.
-
-**How to avoid:**
-Always attach the `workbox-range-requests` plugin (`RangeRequestsPlugin`) to any Workbox strategy that handles audio or video URLs. This plugin intercepts the cached full response and returns the correct byte slice with a 206 status. Additionally, add `crossorigin` attribute to `<audio>` elements even for same-origin URLs — Workbox requires it for media caching to function correctly.
-
-```js
-// Required pattern for cached audio
-import { CacheFirst } from 'workbox-strategies';
-import { RangeRequestsPlugin } from 'workbox-range-requests';
-import { CacheableResponsePlugin } from 'workbox-cacheable-response';
-
-registerRoute(
-  ({ url }) => url.pathname.startsWith('/api/stream/'),
-  new CacheFirst({
-    cacheName: 'audiobooks',
-    plugins: [
-      new CacheableResponsePlugin({ statuses: [200] }),
-      new RangeRequestsPlugin(),
-    ],
-  })
-);
-```
-
-**Warning signs:**
-- Audio plays from beginning but seeking jumps to wrong position or hangs
-- Seeking works when online (streaming directly) but breaks when offline (from cache)
-- Safari refuses to play cached audio even though Chrome works
-- DevTools shows 200 responses for audio requests served from cache
-
-**Phase to address:** Audio streaming phase (backend + service worker setup). Must be verified before any offline testing. Do not test offline playback without first confirming seek works with a cached file.
+Mistakes that cause rewrites or broken data.
 
 ---
 
-### Pitfall 2: Streaming Audio Without `Accept-Ranges` Makes Seeking Impossible
+### Pitfall 1: Last-Admin Deletion Leaves System Locked
 
-**What goes wrong:**
-The backend serves audio but omits the `Accept-Ranges: bytes` response header. Browsers won't attempt range requests without this header, falling back to downloading the entire file before playing. The audio element's time slider becomes non-functional until the full file is buffered. For a 500MB .m4b, this is unusable.
+**What goes wrong:** Admin deletes the only other admin account (or their own via a different session), leaving no admin user in the database. The system becomes permanently inaccessible — no one can create users, trigger rescans, or manage the library without direct DB surgery.
 
-**Why it happens:**
-Standard Node.js `res.sendFile()` or naive stream implementations don't automatically implement range request support. Developers test audio playback (it starts playing) but don't verify that seeking works, discovering the problem much later.
+**Why it happens:** `DELETE /api/users/:id` prevents self-deletion (`id === currentUserId`), but the current code in `src/routes/users.ts` has no guard against deleting *another* admin who happens to be the last one. The self-deletion guard only protects the requesting admin.
 
-**How to avoid:**
-The audio streaming endpoint must:
-1. Read the `Range: bytes=X-Y` header from the request
-2. Open the file, stat it, and calculate the byte range
-3. Respond with HTTP 206, `Content-Range: bytes X-Y/Total`, `Accept-Ranges: bytes`, `Content-Length: rangeSize`
-4. Stream only the requested byte slice using `fs.createReadStream(path, { start, end })`
+**Consequences:** Permanent admin lockout with no recovery path short of `docker exec` + sqlite3 CLI. Household is stuck.
 
-Do not use `res.sendFile()` for audio streaming — it doesn't implement range support correctly. Implement it manually or use a library that handles it.
+**Codebase reference:** `src/routes/users.ts` lines 38-49. The guard checks `id === currentUserId` but does not query admin count.
 
-**Warning signs:**
-- Seeking to the middle of a book causes a long delay then jumps to the right position
-- DevTools Network tab shows `200 OK` instead of `206 Partial Content` for audio requests
-- The audio element's buffered range always starts at 0 and grows linearly
-- Mobile devices play the full file but can't seek backward
+**Prevention:**
+- Before executing DELETE, query: `SELECT COUNT(*) FROM users WHERE role = 'admin'`
+- If count is 1 and the target user is an admin, return 400 "Cannot delete the last admin account"
+- Run this check server-side only — never rely on the UI to enforce it
+- Apply the same guard to role-change operations: demoting the last admin to 'user' is equally dangerous
 
-**Phase to address:** Backend API phase (audio streaming endpoint). This is the most fundamental streaming requirement and must be correct before building any player UI.
+**Detection warning signs:** User reports "no admin access after deleting account" — by definition, unrecoverable without backend access.
+
+**Phase:** Admin UI phase. Must be resolved before the delete endpoint is exposed in the browser UI.
 
 ---
 
-### Pitfall 3: Caching Large Audio Files During Runtime Streaming Is Impossible
+### Pitfall 2: Progress Sync Race — Device A and Device B Both Finish a Chapter Offline
 
-**What goes wrong:**
-Developers assume a service worker runtime cache will transparently cache the audio file as the user streams it. It will not. Browsers only request byte ranges during streaming — a 500MB file gets fetched as dozens of small range requests, none of which is a complete 200 response. The cache stores partial chunks, not the full file. When the user goes offline, the "cached" audio is unusable.
+**What goes wrong:** User listens on phone (offline), switches to tablet (also has offline progress), both come online. Both devices push their position to the server. If the server applies a pure last-write-wins by wall-clock time, the "winning" write may be from whichever device synced first, not from wherever the user actually was furthest along.
 
-**Why it happens:**
-Service worker caching documentation often shows runtime caching (intercept network requests, store responses). Developers apply this to audio assuming it accumulates a full cache. The Workbox documentation explicitly warns against this but it is easy to miss.
+**Why it happens:** `Date.now()` on the client is unreliable for conflict resolution — clocks drift across devices, and the device that syncs first wins regardless of actual playback position. A phone that was used 2 days ago but syncs 5 seconds before the tablet will overwrite 2 days of tablet progress.
 
-**How to avoid:**
-Offline audiobook download must be an explicit, user-triggered action that fetches the complete file using `fetch()` (not `<audio>`), stores it via `cache.add()` or `cache.put()` with a single full 200 response. The UI must have a distinct "Download for offline" button and progress indicator. The offline-capable audio player then uses the cached full file (served via `RangeRequestsPlugin`) rather than the streaming endpoint.
+**Consequences:** User loses reading position. Progress regresses. Trust in the app breaks. This is the most user-visible failure mode for any progress sync feature.
 
-**Warning signs:**
-- Offline audio "should work" but never does
-- Cache Storage shows entries for the audio URL but they are small (bytes not megabytes)
-- No explicit download mechanism exists in the UI — "it's cached automatically"
+**Prevention:**
+- Use "furthest position wins" as the conflict strategy, not timestamp-based LWW
+- The server stores: `position_sec` (playback cursor), `updated_at` (server-receive timestamp)
+- On sync push: `INSERT INTO progress ... ON CONFLICT(user_id, book_id) DO UPDATE SET position_sec = MAX(excluded.position_sec, position_sec), updated_at = datetime('now')`
+- SQLite's `MAX()` in an upsert DO UPDATE clause makes this a single atomic operation with no race
+- Never use the client-supplied timestamp as the authoritative time; use `datetime('now')` server-side
+- "Furthest wins" is correct for linear audiobook listening — it is not correct for all media types, but it is correct here
 
-**Phase to address:** Offline download phase. Separate this feature from streaming entirely — they are different code paths with different storage models.
+**Detection warning signs:** Users reporting "it jumped back to the beginning" or "it forgot where I was."
 
----
-
-### Pitfall 4: iOS Safari Breaks Audio PWAs at the System Level
-
-**What goes wrong:**
-On iOS, PWA audio playback stops completely when the app is minimized or the screen locks. Media Session API lock-screen controls appear intermittently, lose state, or stop responding. There is no reliable way to continue audio playback while the phone is in the pocket. This is a fundamental iOS/Safari architectural limitation, not a bug with a workaround.
-
-**Why it happens:**
-Apple does not grant PWAs the same background audio privileges as native apps. Safari's WKWebView (used for both in-browser and home-screen PWA contexts on iOS) enforces strict foreground-only audio restrictions. Developer experience reports from multiple teams confirm this has not meaningfully improved through iOS 17+.
-
-**How to avoid:**
-Set iOS expectations explicitly in planning:
-- Declare iOS as a "best effort" platform for audio playback
-- Target Android Chrome as the primary mobile platform (full Media Session API support, background audio works correctly)
-- Test all audio features on Android first
-- Do not architect around iOS-specific workarounds that will break cross-platform
-
-Do not file this as a bug to fix — it is a platform policy decision.
-
-**Warning signs:**
-- iOS-specific workaround code proliferating in the audio player
-- Testing primarily done on iOS before Android validation
-- Promises made about iOS lock-screen controls as a core feature
-
-**Phase to address:** Player UI phase. Document iOS limitations in the project's known constraints before the phase begins. Verify Android lock-screen controls work before spending any time on iOS investigation.
+**Phase:** Progress sync phase. The data model design must commit to furthest-wins before any API is built.
 
 ---
 
-### Pitfall 5: Media Session API Position State Not Updated — Lock Screen Controls Desynced
+### Pitfall 3: MP3 Folder "Book" Identity — One Folder, Multiple Interpretations
 
-**What goes wrong:**
-The Android lock screen shows playback controls but they report the wrong position, don't update as time passes, or the seek bar is frozen or invisible. Tapping "skip back 30s" on the lock screen does nothing, or jumps to the wrong position.
+**What goes wrong:** The scanner needs to decide what constitutes a single "book" when processing MP3 folders. Common real-world layouts include:
+- `Author/Book Title/01-chapter.mp3` — one book per folder
+- `Author/Book Title/Disc 1/01.mp3`, `Author/Book Title/Disc 2/01.mp3` — multi-disc book in subfolders
+- `Author/Book Title/Part 1/01.mp3`, `Author/Book Title/Part 2/01.mp3` — multi-part book in subfolders
+- `Author/01.mp3`, `Author/02.mp3` — files directly in author folder with no book subfolder
 
-**Why it happens:**
-The Media Session API requires developers to manually push position state updates via `navigator.mediaSession.setPositionState()`. The API does not listen to the `<audio>` element's `timeupdate` events automatically. Developers implement `setActionHandler` correctly but forget to call `setPositionState` — the controls appear but are not synchronized to actual playback.
+If the scanner treats each *directory* as a book, multi-disc books become multiple books. If it treats the parent folder as the book, flat layouts collapse multiple books into one.
 
-Additional pitfall: after handling a `seekto`, `seekbackward`, or `seekforward` action, developers must call `setPositionState` again with the new position. Missing this call leaves the lock screen display frozen at the pre-seek position.
+**Why it happens:** There is no standardized MP3 audiobook folder structure. Ripped CD collections, downloaded MP3s, and Audible exports all use different conventions. Audiobookshelf GitHub issues #3829 and #2762 show this is a persistent community problem.
 
-The API also requires `duration` to be positive and explicitly set before position state will be displayed. If duration is NaN (audio not yet loaded), the lock screen may show no scrubber.
+**Consequences:** Library shows duplicate phantom "books" (one per disc), or merges unrelated books into one, with scrambled chapter order. Requires manual correction per-book.
 
-**How to avoid:**
-Wire `setPositionState()` to the `<audio>` element's `timeupdate` event, throttled to ~1 second:
+**Codebase reference:** `src/scanner/walk.ts` currently only emits `.m4b` files. MP3 support requires a parallel "folder grouping" pass — a fundamentally different data model than single-file books.
 
-```js
-audio.addEventListener('timeupdate', () => {
-  if (!audio.duration || isNaN(audio.duration)) return;
-  navigator.mediaSession.setPositionState({
-    duration: audio.duration,
-    playbackRate: audio.playbackRate,
-    position: audio.currentTime,
-  });
-});
-```
+**Prevention:**
+- Define a single canonical rule upfront: **the folder directly containing the MP3 files is the book**
+- Walk the tree looking for directories that contain `.mp3` files
+- Each such directory is one book candidate
+- Use the `disc` and `track` ID3 tags from ffprobe to order files within the book: sort by `(disc_number, track_number)`, falling back to natural sort on filename
+- Document the supported layout in README so users know to organize accordingly
+- Do not try to handle multi-disc subfolders in v1.1 — add a note that disc subfolders should be flattened or handled with a metadata.json
 
-Call `setPositionState` immediately after handling any seek action. Set metadata (title, artist, artwork) before playback starts, not after.
+**Detection warning signs:** Book count in admin UI is double what user expects, or book title shows "Disc 1" instead of the book title.
 
-**Warning signs:**
-- Lock screen shows "0:00" or frozen timestamp during playback
-- Seek bar on lock screen is absent or non-interactive
-- Skip buttons on lock screen appear but produce no effect
-- Works on desktop browser (has focus) but fails on phone lock screen
-
-**Phase to address:** Media Session / player controls phase. Test specifically on a physical Android device with screen locked — desktop browser testing will not catch this.
+**Phase:** MP3 scanning phase. The grouping rule must be locked before schema changes.
 
 ---
 
-### Pitfall 6: .m4b Chapter Metadata Is Inconsistent Across Files
+### Pitfall 4: MP3 Track Ordering Breaks Without Natural Sort
 
-**What goes wrong:**
-`ffprobe` extracts chapter data from some .m4b files correctly but returns zero chapters, malformed timestamps, or missing titles for others. The chapter navigation UI breaks for affected books. In edge cases, chapter `start_time` values are in timebase units (e.g., 1/1000 milliseconds) rather than seconds and need explicit conversion.
+**What goes wrong:** `walkLibrary` returns paths sorted alphabetically (via `.sort()`). For `.m4b`, order does not matter — there is one file per book. For MP3 folders, the sort order of files within a folder directly determines playback order. Alphabetic sort puts "Chapter 10" before "Chapter 2". Files named "track1.mp3", "track2.mp3" ... "track10.mp3" play in order 1, 10, 2, 3 — the classic lexicographic vs. numeric sort failure.
 
-**Why it happens:**
-.m4b is an MPEG-4 container. Chapter metadata is stored as a special internal track, not in standard tag fields. Rippers, converters, and audiobook management tools (Calibre, m4b-tool, Audible AAX converters) produce subtly different chapter encodings. Some omit chapter titles entirely (generating "Chapter 1", "Chapter 2"). Some have chapters with identical start/end times. Some encode chapter titles with embedded HTML entities or Unicode that survives ffprobe raw output but breaks JSON serialization.
+**Why it happens:** JavaScript's `Array.sort()` is lexicographic by default. "10" < "2" because "1" < "2". This is universally documented as a pitfall for numbered file sequences.
 
-**How to avoid:**
-At scan time, normalize all chapter data defensively:
-- Convert `start_time` and `end_time` to float seconds explicitly (divide by `time_base` if present)
-- Filter out zero-duration chapters (where `start_time === end_time`)
-- Provide fallback chapter titles: `"Chapter ${index + 1}"` when title is empty or missing
-- Treat books with zero extracted chapters as having a single implicit chapter (full duration)
-- Test scan against a diverse sample of real .m4b files before shipping, not just the same rip tool
+**Consequences:** Book plays chapters out of order. Audiobook experience is broken from first listen.
 
-Run `ffprobe -v quiet -print_format json -show_chapters -show_format <file>` and validate the full output schema.
+**Codebase reference:** `src/scanner/walk.ts` line 19: `return m4bPaths.sort()`. This is correct for `.m4b` (filenames do not affect order) but will be wrong for MP3 track ordering.
 
-**Warning signs:**
-- Chapter count is zero for some books but not others
-- Chapter list shows empty string titles
-- Chapter start times appear as large integers (e.g., `1200000`) instead of seconds
-- Seeking to a chapter jumps to wrong position
+**Prevention:**
+- Sort MP3 files within a folder by their ID3 `track` and `disc` tags (extracted via ffprobe), with natural-sort filename as tiebreaker
+- Implement natural sort: split filenames on numeric boundaries and compare segments as integers where numeric, strings where alpha
+- `"track10.mp3"` vs `"track2.mp3"` → natural sort returns `track2` first
+- Fallback order: (1) disc tag, (2) track tag, (3) natural filename sort
+- The `track` tag in ID3 is often formatted as `"N/Total"` (e.g., `"3/12"`) — parse the part before `/`
+- Run the sort deterministically so repeated scans produce identical chapter sequences
 
-**Phase to address:** Backend scan/metadata phase. Write chapter normalization logic with explicit defensive handling before building the chapter navigation UI.
+**Phase:** MP3 scanning phase. Must be implemented before any chapter list is generated from MP3 files.
 
 ---
 
-## Technical Debt Patterns
+### Pitfall 5: Rescan During Active Scan — Concurrent Scan Corruption
 
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Skip range request implementation, serve full file | Simpler endpoint code | Seeking broken; unusable on mobile; all users must buffer entire book before seeking | Never |
-| Use Workbox precaching for audio files | Simple service worker setup | Service worker install becomes huge; breaks on quota; not how media caching works | Never — use explicit download instead |
-| Store progress only in `localStorage` | Simple, synchronous API | No IndexedDB reliability; not available to service worker; evicted silently on iOS | Only for temporary session state, never for persisted position |
-| Skip `navigator.storage.persist()` call | Less permission complexity | Cached audiobooks evicted when device storage runs low; user loses offline books silently | Only acceptable if offline downloads are not a feature |
-| Single `/stream/:id` endpoint returning full file | Passes basic audio tests | Broken seeking, full file downloaded before play, high memory on server | Never for production audio streaming |
-| Hardcode playback speed multipliers | Fast to ship | Playback speed desync with Media Session position state at non-1x speeds | Acceptable in MVP if noted; fix before shipping speed controls |
+**What goes wrong:** Admin triggers a rescan from the browser UI while a startup scan (or a previous manual scan) is still running. Both scan processes run simultaneously against the same SQLite database. The `scanFile` upsert is atomic, but the `DELETE FROM chapters WHERE book_id = ?` followed by re-insertion is a two-step operation. A concurrent scan of the same file could see the deleted chapters before re-insertion is complete.
 
----
+**Why it happens:** The current `scanLibrary` does not hold a lock or flag during execution. An HTTP-triggered rescan has no mechanism to detect that a scan is already in progress.
 
-## Integration Gotchas
+**Consequences:** A book may temporarily have zero chapters. If the race is tight enough, one scan's chapter write gets deleted by the other scan's DELETE. The result is a book with chapters from a partial write or no chapters at all. Requires full rescan to repair.
 
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| Workbox + audio | Using default CacheFirst without RangeRequestsPlugin | Always attach `RangeRequestsPlugin` and `CacheableResponsePlugin({ statuses: [200] })` to audio routes |
-| Workbox + audio | Adding `crossorigin` only to cross-origin audio | Add `crossorigin` attribute to `<audio>` for same-origin URLs too — required for Workbox media caching |
-| ffprobe + chapters | Parsing `chapters[].start_time` as-is | Always check `time_base` field and convert to seconds; validate duration > 0 per chapter |
-| Media Session API + seekto | Not calling `setPositionState` after seek | Must update position state immediately after processing any seek action handler |
-| IndexedDB + offline progress | Writing progress synchronously without transactions | Use IDB transactions; handle `QuotaExceededError`; add Web Locks if multiple tabs are possible |
-| Docker + file streaming | Mounting library volume read-write | Mount as read-only (`:ro`); prevents accidental writes to source audiobook files |
+**Codebase reference:** `src/scanner/index.ts` lines 168-186. The chapter delete+insert is wrapped in a `db.transaction()`, which makes the pair atomic for a single `scanFile` call, but does not prevent a second concurrent call from racing against the outer scan.
+
+**Prevention:**
+- Maintain a `scanInProgress: boolean` flag as a module-level variable (or in a singleton)
+- `POST /api/admin/rescan` checks the flag: if true, return 409 with "Scan already in progress"
+- Reset the flag on scan completion or unhandled error (use `try/finally`)
+- Optionally track `scanStartedAt` timestamp to surface in admin UI
+- Do not attempt to use SQLite transactions to solve this — the isolation is per-connection but the concurrency issue is at the application level
+
+**Phase:** Library rescan phase. Must be resolved before the rescan endpoint exists.
 
 ---
 
-## Performance Traps
+## Moderate Pitfalls
 
-| Trap | Symptoms | Prevention | When It Breaks |
-|------|----------|------------|----------------|
-| Scanning all .m4b metadata on every API request | API response times of 5-30s; ffprobe spawned per request | Scan once at startup or on file-change events; cache all metadata in memory/JSON file | First book load; worsens linearly with library size |
-| Loading cover art as full-resolution embed from .m4b | Library grid page loads slowly; large payloads over LAN | Extract covers once at scan time, store as resized JPEG on disk, serve as static files | Libraries of 50+ books; mobile connections |
-| Spawning ffprobe process per chapter-seek request | High CPU; slow chapter navigation | All chapter data extracted at scan time and served from JSON cache | Any concurrent users or rapid chapter switching |
-| Buffering entire audio file in Node.js memory | Server OOM with 2-3 concurrent listeners | Use `fs.createReadStream` with byte range; never `fs.readFileSync` for audio | Single 500MB .m4b file with 2 concurrent users |
-| No request abort handling in audio stream endpoint | File stream continues reading after browser navigates away | Listen for `req.on('close', ...)` and destroy the read stream | Always — wasted I/O on every skip/seek |
+Mistakes that cause bad UX or data inconsistency, but are recoverable.
 
 ---
 
-## Security Mistakes
+### Pitfall 6: Session Tokens Survive User Deletion
 
-| Mistake | Risk | Prevention |
-|---------|------|------------|
-| Audio streaming endpoint accepts arbitrary file paths | Path traversal — attacker streams any file on server | Resolve book ID to absolute path from library index; never pass client-supplied path segments to `fs` |
-| Auth token in query string for audio stream URL | Token logged in server access logs, browser history, Referer headers | Use session cookies for auth; if token needed in URL, use short-lived signed tokens that expire in <5 minutes |
-| No auth check on cover art / metadata endpoints | Library contents exposed without login | All API routes, including static-like endpoints (cover images, chapter lists), require session validation |
-| Docker container runs as root | If exploited, attacker has host-level file access | Use `USER node` in Dockerfile; run as non-root; mount library read-only |
-| Storing passwords as plaintext or weak hash | Credential exposure on DB leak | Use bcrypt with cost factor ≥12 for all password storage |
+**What goes wrong:** Admin deletes a user. The user's session tokens still exist in the `sessions` table... but they reference a deleted user via a foreign key with `ON DELETE CASCADE`. In this schema, cascade delete is already configured, so sessions are auto-deleted when the user row is deleted. However, if a deleted user has an active browser tab, their in-flight requests between the tab's last auth check and the next will still carry the now-invalid cookie. The `authMiddleware` will reject the token (session deleted), but the UI will not know the session is dead until the next API call.
 
----
+**What is already handled:** `sessions.user_id` has `ON DELETE CASCADE` (schema.ts line 54), so the DB side is already correct. Password reset already calls `DELETE FROM sessions WHERE user_id = ?` (users.ts line 66).
 
-## UX Pitfalls
+**What is NOT handled:** User deletion does not. The cascade handles it at the DB level, but the client's live tab will get 401s with no friendly message. If the admin UI is on the same session as the deleted user, the page will appear broken.
 
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| No download progress indicator | User taps "Download" and sees nothing; taps again; downloads twice or gives up | Show byte progress (X MB / Y MB) with cancel option; persist download state across page navigations |
-| Offline status not visible | User attempts to browse or play without knowing they're offline | Show persistent offline badge in nav; show which books are downloaded vs. streaming-only |
-| Progress saved only on pause or navigation | Closing the tab abruptly loses position; user re-finds place manually | Save position on `timeupdate` every 10-15 seconds to IndexedDB, not only on pause/unload |
-| Chapter list shows raw seconds | Technical users fine; non-technical household members confused | Display chapter timestamps as `H:MM:SS`; show current chapter highlighted |
-| No resume confirmation after long gap | User accidentally restarts book after weeks away | If last position > 5 minutes ago, offer "Resume from Chapter 7 (2h 14m)" rather than silently resuming |
-| Speed control resets on book change | Users who listen at 1.5x must reset every book | Persist playback speed preference in localStorage; apply it as the default for all books |
+**Prevention:**
+- Cascade delete already handles token cleanup — no additional backend work needed
+- Add UI handling: on 401 from any API call, redirect to `/login` with a "Session expired" message
+- In the admin UI, consider a confirmation step before deletion: "This will log out the user from all devices"
+
+**Phase:** Admin UI phase. The DB is already correct; the frontend behavior needs attention.
 
 ---
 
-## "Looks Done But Isn't" Checklist
+### Pitfall 7: Progress Tiles Show Stale Data After Tab Is Reopened
 
-- [ ] **Audio seeking:** Audio element plays from start — verify seeking to 50% position works while OFFLINE (not just online streaming)
-- [ ] **Range requests:** Check server response headers in DevTools — must see `206 Partial Content` and `Content-Range` header, not `200 OK`
-- [ ] **Offline download:** Download a book, enable airplane mode, reload the PWA, play the book — full seek must work
-- [ ] **Media Session lock screen:** Test on a physical Android device with screen locked — desktop DevTools Media panel does not replicate lock screen behavior
-- [ ] **Progress persistence:** Close browser tab mid-chapter, reopen, verify resume position is accurate to within 15 seconds
-- [ ] **Chapter extraction:** Run scan against at least 5 different .m4b files from different ripping tools — chapter counts must all be > 0 or fallback applied
-- [ ] **Multi-user isolation:** Log in as User A, read to chapter 5. Log in as User B — verify User B's progress is unaffected
-- [ ] **Storage persistence:** Check `navigator.storage.persisted()` returns `true` after offline download — if not, cached books are eviction candidates
-- [ ] **Stream abort:** Navigate away mid-stream — verify no file descriptor leak (check server logs for stream cleanup)
-- [ ] **Cover art:** Verify cover images load for all books in library, including books with non-ASCII filenames
+**What goes wrong:** User opens the library grid. Progress percentages are read from IndexedDB and rendered into Alpine tiles. User listens on another device (or in another tab), returns to the first tab. The progress tiles still show the old position because IndexedDB was read once at page load and is not reactive to changes in other tabs.
 
----
+**Why it happens:** Raw IndexedDB has no cross-tab notification mechanism. Alpine's `x-data` and `$store` are reactive within a tab but do not observe IndexedDB changes from other contexts.
 
-## Recovery Strategies
+**Consequences:** Progress tile shows 23% when user is actually at 67%. Not data-corrupting, but confusing and trust-eroding.
 
-| Pitfall | Recovery Cost | Recovery Steps |
-|---------|---------------|----------------|
-| Range requests not implemented, seek broken | HIGH | Rewrite audio streaming endpoint; update service worker cache strategy; re-test all offline scenarios |
-| Service worker caching strategy wrong for audio | MEDIUM | Update service worker registration; invalidate old caches; add RangeRequestsPlugin; bump cache version |
-| Chapter extraction bugs found post-launch | MEDIUM | Fix normalization logic; trigger rescan; chapter data is computed at scan time, no migration needed |
-| iOS audio stops on lock — users complain | LOW (expectation) | Document iOS limitation explicitly; recommend Android or browser tab for mobile use |
-| Progress data lost on iOS due to eviction | MEDIUM | Add `navigator.storage.persist()` call; add sync-to-server fallback; add export/backup UI |
-| Path traversal vulnerability in stream endpoint | HIGH | Emergency patch; audit all file-serving routes; rotate any exposed session tokens |
+**Prevention:**
+- Refresh progress data on `visibilitychange` event: when the tab becomes visible again, re-read IndexedDB for all displayed books and update Alpine store
+- After progress sync is implemented, `visibilitychange` also triggers a sync push+pull, so the displayed percentage reflects server state
+- Keep the read lightweight: a single IndexedDB `getAll` on the progress store is fast (< 5ms for a household-sized library)
+- Do not use `setInterval` polling — `visibilitychange` is the correct event
+
+**Phase:** Progress tiles phase. The sync phase amplifies this fix — on visibility, sync then display.
 
 ---
 
-## Pitfall-to-Phase Mapping
+### Pitfall 8: Alpine Large List Re-render on Progress Update
 
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| Range requests missing on server | Backend audio streaming | `curl -r 0-1023 /api/stream/:id` returns 206 with Content-Range header |
-| Accept-Ranges header missing | Backend audio streaming | DevTools Network: audio requests show 206, not 200 |
-| Service worker not handling range requests | Service worker / offline setup | Seek works after disabling network in DevTools |
-| Runtime caching broken for large audio | Offline download feature | Offline play works after explicit "Download" action, not implicit |
-| Media Session position state desync | Player controls phase | Lock screen scrubber matches audio position; test on physical Android |
-| iOS audio stops on lock | Player controls phase | Documented as known limitation; not filed as a bug |
-| .m4b chapter metadata inconsistency | Metadata scan phase | Scan 5+ different .m4b files; all produce chapter lists or fallback |
-| Progress not persisted to IndexedDB | Progress tracking phase | Tab close mid-chapter; reopen; resume position within 15s accuracy |
-| Storage not marked persistent | Offline download phase | `navigator.storage.persisted()` returns true post-install |
-| Stream not aborted on client disconnect | Backend audio streaming | Server process file descriptor count stable under rapid seek/navigate |
-| Path traversal in stream endpoint | Backend auth + streaming | Attempt `../../../etc/passwd` as book ID; verify 404 or 400, no file read |
+**What goes wrong:** When a progress value changes in Alpine's `$store`, Alpine re-evaluates all expressions in all components that reference that store property. If the library grid has 200+ books, each with a `x-bind` to a computed progress percentage, every progress update triggers a full store traversal and re-evaluation.
+
+**Why it happens:** Alpine does not have virtual DOM diffing — it re-evaluates expressions directly. Deeply nested or large arrays in `$store` worsen this. The GitHub issue #570 confirms `x-for` has overhead at scale compared to vanilla JS.
+
+**Consequences:** Visible jank when progress updates during playback (e.g., the progress bar update ripples to the grid). On low-power devices (Raspberry Pi browser, older Android), this may be noticeable.
+
+**Prevention:**
+- Store progress in a `Map`-like structure keyed by `bookId` in `$store.progress`
+- Use `x-bind:style` or `x-bind:class` referencing only `$store.progress[bookId]`, not a computed array
+- Each tile accesses only its own key — Alpine only re-evaluates tiles whose key changes
+- Do not store the entire progress record in `x-data` per tile — that creates N reactive roots
+- Debounce progress writes: during playback, write to IndexedDB and store every 10 seconds, not on every `timeupdate` event
+
+**Phase:** Progress tiles phase. Architecture decision before Alpine wiring begins.
+
+---
+
+### Pitfall 9: MP3 Metadata Overwrite on Rescan Erases User-Corrected Titles
+
+**What goes wrong:** User's MP3 collection has no embedded ID3 tags. The scanner derives titles from the folder name (fallback logic in `applyFallbackMetadata`). User creates a `metadata.json` file to correct the title. Later, admin triggers a rescan. The upsert in `scanFile` overwrites ALL metadata columns, including those the user corrected via `metadata.json` — but only if the file's mtime/size changed. If a file is re-touched (e.g., by a backup tool), the upsert runs and the fallback re-applies, which should be fine. However, if mtime changes but `metadata.json` is absent at rescan time (e.g., user deleted it after correcting), the title reverts to the folder name.
+
+**Why it happens:** `applyFallbackMetadata` fills null fields from `metadata.json` but cannot distinguish "was null because never set" from "was null and user wants it null." The upsert always overwrites all metadata columns.
+
+**Codebase reference:** `src/scanner/index.ts` lines 97-145. The upsert overwrites all non-cover fields unconditionally.
+
+**Prevention:**
+- This is acceptable behavior for v1.1: document that `metadata.json` is the override mechanism and it must be kept in place
+- For the MP3 scanning case, the same rule applies: `metadata.json` in the book folder overrides all extracted/fallback metadata
+- If admin-editable metadata via the UI is added in a later milestone, add a `metadata_locked` flag to the books table and skip upsert of metadata columns when set
+
+**Phase:** MP3 scanning phase. Not a blocker for v1.1, but document the behavior.
+
+---
+
+### Pitfall 10: MP3 Folder Books Share a `file_path` Identity Problem
+
+**What goes wrong:** The current `books` table uses `file_path TEXT NOT NULL UNIQUE` as the natural key for upsert and identity. For `.m4b`, one file = one book, so `file_path` is the canonical identifier. For MP3 folders, there is no single file — the book is a *directory* of files. If `file_path` is set to the folder path, it works for identity. But if the scanner also tries to index individual MP3 files by their path, there will be N rows per book.
+
+**Why it happens:** The schema was designed for single-file books. The `file_path` column is not conceptually wrong for folder-based books, but the scanner needs an explicit convention: "for MP3 books, `file_path` is the folder path, not a member file path."
+
+**Consequences:** If the scanner accidentally creates one book row per MP3 file, the library grid shows 30 "books" for a 30-track audiobook.
+
+**Codebase reference:** `src/db/schema.ts` line 8. `file_path TEXT NOT NULL UNIQUE` — currently expected to be a `.m4b` file path.
+
+**Prevention:**
+- For MP3 books, set `file_path = directory_path` (the folder, not any individual file)
+- `mtime` and `size` for an MP3 book: use the folder's mtime and the sum of all member file sizes
+- Store member files in a new table (`book_files`?) or derive them on demand from the filesystem
+- The simplest v1.1 approach: no `book_files` table — store the folder path, re-read member files on every streaming request, and trust the sort order from the scan
+- Add a `format` column to `books` (e.g., `'m4b'` or `'mp3_folder'`) so streaming and chapter logic can branch by type
+
+**Phase:** MP3 scanning phase. Schema migration required before any MP3 scanning code runs.
+
+---
+
+### Pitfall 11: Rescan API Has No Progress Feedback — User Triggers Multiple Rescans
+
+**What goes wrong:** Admin clicks "Rescan Library" and nothing visibly happens (or response is slow). Admin clicks again. Now two concurrent scans race (see Pitfall 5), or the second request 409s silently, leaving the admin unsure if the rescan is running.
+
+**Why it happens:** HTTP POST for a long-running background operation returns immediately or hangs. Without feedback, the user assumes nothing happened.
+
+**Prevention:**
+- POST `/api/admin/rescan` starts the scan in the background (fire and forget) and immediately returns `{ status: 'started' }` or `{ status: 'already_running' }` (409)
+- Expose GET `/api/admin/scan-status` that returns `{ inProgress: boolean, startedAt: string | null, lastCompletedAt: string | null }`
+- Admin UI polls `scan-status` every 3 seconds while `inProgress` is true, then refreshes the book list on completion
+- Store `lastCompletedAt` in a module-level variable (no DB needed) — survives until next restart, which is sufficient
+
+**Phase:** Library rescan phase. The status endpoint is simple but prevents the double-trigger problem.
+
+---
+
+## Minor Pitfalls
+
+---
+
+### Pitfall 12: `cover_path` Upsert Does Not Reset on Rescan
+
+**What goes wrong:** A `.m4b` or MP3 folder's cover art is extracted on first scan and written to `/data/covers/{id}.jpg`. On rescan (mtime changed), the upsert runs, but the cover is inserted as `null` and then updated below the upsert. If the re-extraction fails (e.g., cover stream gone in a re-encoded file), `cover_path` is set to null. A working cover art disappears.
+
+**Codebase reference:** `src/scanner/index.ts` line 144 — `null` is inserted for `cover_path`, then updated on lines 154-165. If the second update succeeds with a non-null value, fine. If it fails silently (exception caught), cover_path stays null.
+
+**Prevention:**
+- Before overwriting `cover_path` with null on upsert, check if a cover file already exists at the previous path
+- If cover extraction fails and a previous cover file exists, preserve the existing `cover_path` value
+- The simplest fix: read existing `cover_path` before the upsert and fall back to it if new extraction fails
+
+**Phase:** MP3 scanning phase (covers for MP3 books will need similar handling; fix the root issue then).
+
+---
+
+### Pitfall 13: Service Worker `precacheAndRoute` Revision Must Be Updated
+
+**What goes wrong:** `sw.js` hardcodes revision strings for precached assets (line 8-13 in `public/sw.js`). When the admin UI page is added as a new route or existing HTML/JS files change, the old revision causes the service worker to serve stale assets from cache. Users see the old UI after a deployment.
+
+**Why it happens:** Workbox precaching uses revision to detect changes. Without a build tool to auto-generate revisions, revisions must be bumped manually on every asset change.
+
+**Prevention:**
+- Increment the revision string whenever any precached file changes — treat it as a required step in the deployment checklist
+- When new admin UI pages/scripts are added, add them to the `precacheAndRoute` array with a `revision: '1'`
+- Consider adding a comment at the top of `sw.js`: "// Bump revision strings when any precached asset changes"
+
+**Phase:** Any phase that modifies frontend assets. Low-severity but breaks cache freshness.
+
+---
+
+### Pitfall 14: Alpine `adminOnly` UI Guards Are Not a Security Boundary
+
+**What goes wrong:** Admin UI is shown/hidden with Alpine `x-if` based on the user's role from `$store.auth.role`. A regular user who knows the admin endpoint URLs can still call them directly — the browser UI guard is cosmetic only. The backend `adminOnly` middleware is the real gate.
+
+**Prevention:** This is already handled — `src/middleware/auth.ts` has `adminOnly` middleware applied to all `/api/users/*` routes. This pitfall is a reminder: do not route the admin rescan endpoint without the same middleware, and do not move any admin logic to the frontend.
+
+**Phase:** Admin UI phase. Verify `adminOnly` middleware is on all new admin endpoints before shipping.
+
+---
+
+## Phase-Specific Warnings
+
+| Phase Topic | Pitfall | Prevention Summary |
+|-------------|---------|-------------------|
+| Admin UI — user management | Last-admin deletion lockout (P1) | Count admins before DELETE; block if count = 1 |
+| Admin UI — user management | Session tokens for deleted users (P6) | Cascade already handles DB; fix frontend 401 redirect |
+| Admin UI — rescan trigger | Concurrent scan race (P5) | Module-level `scanInProgress` flag; 409 on second request |
+| Admin UI — rescan trigger | No feedback loop (P11) | Background start + status polling endpoint |
+| Admin UI — security | Frontend role guard bypassed (P14) | Ensure `adminOnly` middleware on all new admin routes |
+| Progress sync | Clock-drift conflict (P2) | `MAX(excluded.position_sec, position_sec)` upsert; server timestamp only |
+| Progress tiles | Stale data on tab resume (P7) | Re-read IndexedDB on `visibilitychange` |
+| Progress tiles | Alpine re-render at scale (P8) | Keyed `$store.progress` map; debounce writes |
+| MP3 scanning | Book identity ambiguity (P3) | Folder path = book identity; document supported layout |
+| MP3 scanning | Lexicographic file ordering (P4) | Natural sort by disc/track tag then filename |
+| MP3 scanning | Schema incompatibility (P10) | `file_path` = folder path; add `format` column; migration required |
+| MP3 scanning | Metadata overwrite on rescan (P9) | Document; `metadata.json` is the correction mechanism |
+| All phases | Cover art lost on re-extraction failure (P12) | Preserve previous `cover_path` if re-extraction fails |
+| All phases | Service worker stale cache (P13) | Bump `precacheAndRoute` revision strings on any asset change |
 
 ---
 
 ## Sources
 
-- Workbox: Serving Cached Audio and Video — https://developer.chrome.com/docs/workbox/serving-cached-audio-and-video (HIGH confidence — official Workbox documentation)
-- Service Workers: Beware Safari's Range Request — https://philna.sh/blog/2018/10/23/service-workers-beware-safaris-range-request/ (HIGH confidence — specific technical bug documentation, verified against Workbox docs)
-- web.dev: Media Session API — https://web.dev/articles/media-session (HIGH confidence — official Google documentation)
-- MDN: Storage quotas and eviction criteria — https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria (HIGH confidence — official MDN)
-- MDN: StorageManager.persist() — https://developer.mozilla.org/en-US/docs/Web/API/StorageManager/persist (HIGH confidence)
-- What we learned about PWAs and audio playback — https://blog.prototyp.digital/what-we-learned-about-pwas-and-audio-playback/ (MEDIUM confidence — practitioner post-mortem, multiple confirming sources)
-- PWA iOS Limitations 2026 — https://www.magicbell.com/blog/pwa-ios-limitations-safari-support-complete-guide (MEDIUM confidence — aggregated current status)
-- Audiobookshelf chapter issues — https://github.com/advplyr/audiobookshelf/issues/676 (MEDIUM confidence — production system real-world data)
-- m4b-tool chapter extraction issues — https://github.com/sandreas/m4b-tool/issues/6 (MEDIUM confidence — confirmed chapter metadata edge cases)
-- IndexedDB pain and anguish — https://gist.github.com/pesterhazy/4de96193af89a6dd5ce682ce2adff49a (MEDIUM confidence — well-known community reference)
-
----
-*Pitfalls research for: Self-hosted audiobook PWA (.m4b, Alpine.js, Workbox, Media Session API)*
-*Researched: 2026-03-22*
+- [audiobookshelf scanner docs](https://www.audiobookshelf.org/guides/book-scanner/) — MEDIUM confidence, community-driven audiobook scanning patterns
+- [audiobookshelf issue #3829](https://github.com/advplyr/audiobookshelf/issues/3829) — MP3 chapter creation requires audio meta tags; confirmed community bug report
+- [audiobookshelf issue #2762](https://github.com/advplyr/audiobookshelf/issues/2762) — metadata order of precedence not honored on weekly scan; confirmed community bug
+- [Debugging audiobookshelf folder-based books (Abookio, 2025)](https://abookio.app/news/2025/11/25/abs-bug.html) — folder detection bugs in production scanner
+- [Offline sync & conflict resolution (Feb 2026)](https://www.sachith.co.uk/offline-sync-conflict-resolution-patterns-architecture-trade%E2%80%91offs-practical-guide-feb-19-2026/) — architecture patterns for offline-first sync conflict
+- [Downsides of offline-first | RxDB](https://rxdb.info/downsides-of-offline-first.html) — IndexedDB eviction, clock drift, sync complexity
+- [IndexedDB performance pitfalls](https://dev.to/roverbober/indexeddb-understanding-performance-pitfalls-part-1-434d) — transaction handling limits; initialization time at scale
+- [Solving IndexedDB slowness | RxDB](https://rxdb.info/slow-indexeddb.html) — store partitioning, transaction batching
+- [How to invalidate JWT without blacklist](https://dev.to/webjose/how-to-invalidate-jwt-tokens-without-collecting-tokens-47pk) — session invalidation strategies
+- [Alpine.js x-for large list performance](https://github.com/alpinejs/alpine/discussions/570) — confirmed overhead at scale
+- [Alpine.js stores usage guide](https://alpinedevtools.com/blog/stores-usage-guide) — keyed store patterns, reactivity scope
+- [Workbox audio caching / range requests](https://github.com/daffinm/audio-cache-test) — RangeRequestsPlugin is mandatory for audio; CacheFirst requires full-file cache
+- [6 RBAC implementation pitfalls](https://idenhaus.com/rbac-implementation-pitfalls/) — privilege escalation, separation of duties
+- Codebase review: `src/routes/users.ts`, `src/db/schema.ts`, `src/scanner/index.ts`, `src/scanner/walk.ts`, `src/scanner/probe.ts`, `src/middleware/auth.ts`, `public/sw.js` — HIGH confidence, direct code inspection

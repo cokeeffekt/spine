@@ -1,146 +1,282 @@
-# Stack Research
+# Technology Stack — v1.1 Additions
 
-**Domain:** Self-hosted audiobook PWA (Node/Bun backend, Alpine.js frontend, .m4b only)
-**Researched:** 2026-03-22
-**Confidence:** HIGH (all critical choices verified against current docs or official sources)
-
----
-
-## Recommended Stack
-
-### Core Technologies
-
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| Hono | 4.12.x | HTTP framework / REST API | Runs natively on both Node.js and Bun with zero-config adapter swap. Ultrafast RegExpRouter, built-in TypeScript types, JWT + cookie middleware included. Active release cadence (weekly patches in March 2026). Replaces Express with better DX and no performance penalty. |
-| Bun | 1.2.x (or Node.js 22 LTS) | JavaScript runtime | Bun is the preferred runtime: faster startup, built-in password hashing (`Bun.password`), native TypeScript. Node.js 22 LTS is the drop-in fallback — same Hono code runs on both. Range-request bug (Issue #10440) was fixed in Bun v1.1.9. |
-| better-sqlite3 | 12.8.x | Metadata + user/session store | Synchronous API avoids callback complexity. 448K ops/sec vs 224K for libsql. Zero external dependencies — perfect for a single-container deployment. Stores normalized book metadata, chapter lists, users, and session tokens. |
-| Alpine.js | 3.15.x | Frontend reactivity | Loaded via CDN `<script defer>` — no build step. x-data/x-bind/x-on are sufficient for library grid, player controls, and settings. Stores handle cross-component state (playback, queue). Chosen over React/Vue because inspectable HTML is a project constraint. |
-| Workbox (workbox-sw) | 7.4.0 | Service worker / offline caching | Loaded via `importScripts()` CDN — no build step required. CacheFirst for audio files, NetworkFirst for API responses. Handles whole-book offline download into Cache Storage. The `workbox-sw` module auto-loads sub-packages on first use. |
-| ffprobe (system binary) | 7.x (via Docker) | .m4b metadata + chapter extraction | The only reliable tool for reading AAC/MP4 chapter markers, embedded cover art, and format tags. Called directly via `child_process.spawn` — no wrapper library needed (fluent-ffmpeg is deprecated/archived as of May 2025). |
-
-### Supporting Libraries
-
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| `@hono/node-server` | latest | Node.js adapter for Hono | Required when running on Node.js 22 (not needed on Bun, which uses `Bun.serve`). Also provides `serveStatic` with range-request support for audio streaming. |
-| `@node-rs/argon2` | 2.x | Password hashing (Node.js) | Use on Node.js. Precompiled Rust binary — no node-gyp. Faster than `argon2` npm package. Use `Bun.password` instead when running on Bun (built-in, zero deps). |
-| `jose` | 5.x | JWT signing for session tokens | Pure JavaScript, works on Node and Bun. Used to sign/verify session JWTs stored in HttpOnly cookies. Ships with Hono's JWT middleware as a peer dep. |
-| `zod` | 3.x | Request validation | Used in Hono route handlers via `@hono/zod-validator`. Validates login payloads, API query params. TypeScript inference from schemas means no duplicate type definitions. |
-
-### Development Tools
-
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| TypeScript | Type safety across the entire backend | Run directly with `bun run` (Bun) or `tsx` (Node.js). No `tsc` compile step needed in development. |
-| `tsx` | TypeScript executor for Node.js dev | Drop-in `ts-node` replacement; much faster. Only needed if not using Bun. |
-| Docker + docker-compose | Single-container deployment | Multi-stage build: `node:22-alpine` (or `oven/bun:alpine`) as runtime, system `ffmpeg` package installed in the same image. No separate containers needed. |
+**Project:** Spine (self-hosted audiobook platform)
+**Milestone:** v1.1 — Admin Tools, Progress Sync, MP3 Folder Support, Progress Tiles
+**Researched:** 2026-03-23
+**Scope:** NEW capabilities only. Existing v1.0 stack (Bun, Hono, bun:sqlite, Alpine.js, Workbox, ffprobe) is validated and not re-evaluated.
 
 ---
 
-## Installation
+## Executive Finding
 
-```bash
-# Core backend (Bun)
-bun add hono better-sqlite3 zod jose
+**No new npm dependencies are needed for three of the four features.** Admin UI, library rescan, and progress sync are all pure extensions of the existing Hono + bun:sqlite + Alpine.js stack. MP3 folder support is the only area where a new library is worth evaluating, and even there ffprobe is the preferred tool — it already exists in the Docker image and already reads ID3 tags. The recommendation is to extend ffprobe usage to MP3 files rather than add `music-metadata`.
 
-# Core backend (Node.js)
-npm install hono @hono/node-server better-sqlite3 zod jose @node-rs/argon2
+---
 
-# Hono validation middleware
-bun add @hono/zod-validator
-# or
-npm install @hono/zod-validator
+## Feature-by-Feature Analysis
 
-# Dev dependencies (Node.js path only)
-npm install -D typescript tsx @types/better-sqlite3
+### 1. Admin UI (user create/delete/reset password + library rescan trigger)
 
-# Frontend — no npm install. Load via CDN in HTML:
-# Alpine.js:  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.15.8/dist/cdn.min.js"></script>
-# Workbox sw: importScripts('https://storage.googleapis.com/workbox-cdn/releases/7.4.0/workbox-sw.js')
+**Verdict: No new libraries needed.**
+
+The user management API routes (`POST /api/users`, `DELETE /api/users/:id`, `PATCH /api/users/:id/password`) already exist in `src/routes/users.ts` and are tested. The admin UI is a new HTML page served from `public/admin.html` using Alpine.js (already loaded via CDN) for reactivity and `fetch()` to call existing endpoints.
+
+Library rescan trigger is a new `POST /api/admin/rescan` endpoint that calls the existing `scanLibrary()` function. No new backend infrastructure is required.
+
+**Integration point:** Mount admin routes under `app.route("/api", adminRoutes)` in `src/server.ts`, guarded by `adminOnly` middleware (already implemented in `src/middleware/auth.ts`).
+
+---
+
+### 2. Admin-Triggered Library Rescan with Live Progress
+
+**Verdict: Use Hono's built-in `streamSSE()`. No new library needed.**
+
+Hono 4.x includes `streamSSE()` in `hono/streaming` (confirmed HIGH confidence via official docs at `https://hono.dev/docs/helpers/streaming`). It streams Server-Sent Events over a single HTTP connection using `stream.writeSSE({ data, event, id })`. The rescan endpoint opens an SSE stream, runs `scanLibrary()` with a progress callback injected, and writes events as files are processed.
+
+```typescript
+// Conceptual shape — no new imports beyond hono/streaming
+import { streamSSE } from 'hono/streaming'
+
+app.get('/api/admin/rescan/stream', adminOnly, (c) => {
+  return streamSSE(c, async (stream) => {
+    await scanLibrary(db, libraryRoot, defaultProbeFn, async (event) => {
+      await stream.writeSSE({ data: JSON.stringify(event), event: 'progress' })
+    })
+    await stream.writeSSE({ data: '{}', event: 'complete' })
+  })
+})
 ```
 
----
+The frontend uses `EventSource` (supported in all target browsers and iOS Safari 9+) to receive events. Alpine.js handles state updates reactively.
 
-## Alternatives Considered
+**Why not WebSockets?** One-way communication (server to client only) — SSE is the correct primitive. No additional library, no binary framing overhead.
 
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|-------------------------|
-| Hono | Express | Never for new projects. Express has no native Bun support, no built-in TypeScript types, slower router. Use Hono. |
-| Hono | Fastify | If the team prefers plugin-based architecture and JSON schema validation. Fastify is excellent but has more setup overhead; overkill for this project scope. |
-| better-sqlite3 | `node:sqlite` (built-in) | Once Node.js 24 ships as LTS (late 2025) and the module stabilizes. As of March 2026 it is still marked experimental in some contexts. better-sqlite3 12.x is production-proven. |
-| better-sqlite3 | libsql | If you need remote SQLite (Turso) or async-first API. For local self-hosted use, libsql is half the performance with no benefit. |
-| Direct `child_process.spawn` for ffprobe | fluent-ffmpeg | Never. fluent-ffmpeg was archived and deprecated in May 2025. Direct spawn is ~20 lines of code and avoids a dead dependency. |
-| Alpine.js CDN | Vue / React | If the UI grows complex (lots of cross-component state, transitions, forms). For a library browser + audio player, Alpine's x-data/x-store is sufficient. |
-| Workbox CDN (workbox-sw) | Vite PWA plugin | If a build step is ever introduced. For the no-build-step constraint, workbox-sw via CDN is the only option. |
-| `@node-rs/argon2` (Node.js) | `bcrypt` npm | bcrypt is still acceptable but Argon2id is the 2025 standard per OWASP and the Password Hashing Competition. @node-rs/argon2 is faster and has no node-gyp build step. |
-| `Bun.password` (Bun) | `argon2` npm | `argon2` npm is a native addon that had compatibility issues with Bun. `Bun.password` is built-in, zero-dependency, and uses Argon2id by default. |
+**Why not polling?** For a scan that may process hundreds of books, real-time progress is significantly better UX than polling intervals. SSE over Hono costs zero new dependencies.
 
 ---
 
-## What NOT to Use
+### 3. Progress Sync to Backend
 
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| `fluent-ffmpeg` | Archived and deprecated May 2025. NPM package marked deprecated. No security patches. | Direct `child_process.spawn` calling `ffprobe -print_format json -show_format -show_streams -show_chapters` |
-| `@ffmpeg/ffmpeg` (WASM) | Runs FFmpeg in WebAssembly — 10-100x slower than system binary, not suitable for server-side batch scanning | System `ffmpeg`/`ffprobe` binary via spawn |
-| `sqlite3` (npm) | Callback-only API, significantly slower than better-sqlite3, requires node-gyp | `better-sqlite3` |
-| `express` | No Bun support, deprecated ecosystem relative to Hono, no built-in TypeScript, slower router | `hono` |
-| `passport.js` | Heavy, Express-coupled, overkill for simple username/password + session. Adds 5+ transitive deps. | Hono cookie middleware + `jose` JWT + manual credential check |
-| `multer` / form-based uploads | Spine does not accept uploads — library is filesystem-only | N/A |
-| `node:sqlite` as primary DB | Still experimental as of early 2026. API surface is incomplete versus better-sqlite3. | `better-sqlite3` |
-| React / Vue for frontend | Requires build step. Project constraint is no build step. | Alpine.js |
+**Verdict: New `progress` table in bun:sqlite + two new Hono endpoints. No new library needed.**
 
----
+The existing schema in `src/db/schema.ts` needs one new table:
 
-## Stack Patterns by Variant
+```sql
+CREATE TABLE IF NOT EXISTS progress (
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  book_id     INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+  position_sec REAL   NOT NULL DEFAULT 0,
+  chapter_idx  INTEGER NOT NULL DEFAULT 0,
+  updated_at   TEXT   NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, book_id)
+);
+```
 
-**If running on Bun:**
-- Use `Bun.serve()` natively (Hono's Bun adapter is built-in, no separate package)
-- Use `Bun.password.hash()` / `Bun.password.verify()` for password hashing — zero additional dependencies
-- TypeScript runs directly via `bun run server.ts`
+**Conflict resolution strategy:** "Last write wins, server is authoritative." The client pushes `{ book_id, position_sec, chapter_idx, updated_at }`. The server does `INSERT OR REPLACE` (SQLite `ON CONFLICT DO UPDATE`) comparing `updated_at` timestamps — client timestamp wins if newer. On page load, the client fetches server state and merges with IndexedDB using the same timestamp comparison. This mirrors the v1.0 local-first philosophy: IndexedDB remains the source of truth offline; server state is reconciled on reconnect.
 
-**If running on Node.js 22 LTS:**
-- Add `@hono/node-server` adapter package
-- Add `@node-rs/argon2` for password hashing
-- Run TypeScript via `tsx server.ts` in development, compile for production
-- HTTP range requests for audio streaming handled by `@hono/node-server`'s `serveStatic`
+bun:sqlite supports `INSERT ... ON CONFLICT(user_id, book_id) DO UPDATE SET` — this is standard SQLite 3.24+ syntax and confirmed to work through bun:sqlite's SQL execution layer even though not explicitly listed in the docs (HIGH confidence: project already uses this pattern in `src/scanner/index.ts` line 97-126).
 
-**If deploying to Docker (expected path):**
-- Base image: `node:22-alpine` or `oven/bun:1-alpine`
-- Install `ffmpeg` system package in Dockerfile (`apk add ffmpeg`) — this gives both `ffmpeg` and `ffprobe` binaries
-- No multi-stage build needed: the Alpine image with ffmpeg is small enough (~120MB with Node, ~80MB with Bun)
-- Mount audiobook directory as a volume — do not copy media into the image
+**New endpoints:**
+- `PUT /api/progress/:bookId` — upsert progress for authenticated user
+- `GET /api/progress` — return all progress records for authenticated user (for bulk sync on login)
+- `GET /api/progress/:bookId` — return single book progress (for resume on book open)
+
+**Frontend integration:** On resume, fetch server progress and compare `updated_at` to IndexedDB record — use whichever is newer. On position update (same debounce as IndexedDB write), fire-and-forget `PUT /api/progress/:bookId`. Alpine.js `$store` holds the merged progress map; library grid tiles read `$store.progress[bookId]?.pct` for the progress indicator.
 
 ---
 
-## Version Compatibility
+### 4. MP3 Folder Support
 
-| Package | Compatible With | Notes |
-|---------|-----------------|-------|
-| `better-sqlite3@12.x` | Node.js >=18, Bun >=1.0 | Prebuilt binaries for common platforms. Bun can run it via Node-API compatibility. |
-| `hono@4.x` + `@hono/node-server` | Node.js >=18 | Hono core is runtime-agnostic; adapter handles Node.js specifics. |
-| `@node-rs/argon2@2.x` | Node.js >=18 | Prebuilt Rust binary, no gyp. Not needed on Bun (use `Bun.password`). |
-| `alpine.js@3.15.x` CDN | All modern browsers, iOS Safari 14+, Android Chrome | Media Session API (lock-screen controls) requires Chrome 57+ / Safari 15+. |
-| `workbox-sw@7.4.0` CDN | All browsers supporting Service Workers | Service Worker requires HTTPS or localhost. Cache Storage for audio files works on all targets. |
-| ffprobe 7.x | .m4b (AAC in MP4 container) | Reads `chapters`, `format.tags`, `streams[0]` (cover art as stream). Ensure `ffprobe` is in `PATH` inside the container. |
+**Verdict: Extend ffprobe + existing fallback infrastructure. Do NOT add music-metadata.**
+
+#### Why not `music-metadata`?
+
+`music-metadata@11.12.3` (published 2026-03-12) is pure ESM and works on Node.js 18+. However:
+
+- Bun compatibility issue #16402 is open as of March 2026 — the `parseWebStream`/`parseBlob` API has a confirmed bug with `ReadableStreamBYOBReader`. A fix was committed 2026-02-20 and is in Bun 1.2.x, but the issue is still marked open.
+- `parseFile` uses Node.js `fs.createReadStream` internally, which has a separate Bun compatibility issue (#9907).
+- Adding any npm dependency introduces risk in a project that currently has exactly one runtime dependency (`hono`). The project's architecture deliberately avoids npm dependencies for server-side processing.
+- ffprobe is already in the Docker image, already called via `child_process.spawn`, and already reads ID3 tags from MP3 files via `format.tags` (same JSON structure as .m4b).
+
+#### How ffprobe handles MP3s
+
+ffprobe's `-show_format -show_streams -show_chapters -print_format json` command works identically on MP3 files. ID3 tags appear in `format.tags` under the same keys already handled by `normalizeTag()` in `src/scanner/probe.ts`: `title`, `artist`, `album_artist`, `album`, `track`, `date`, `comment`, `genre`, `composer`, etc.
+
+MP3 files lack the embedded chapter markers that .m4b files have, so `output.chapters` will be empty — the existing `normalizeChapters()` already handles this: it returns a single implicit chapter spanning the full duration (lines 37-44 in `probe.ts`).
+
+#### The real problem: folder scanning, not metadata parsing
+
+For MP3 audiobooks, a "book" is a folder of files, not a single file. The scanner architecture must change:
+
+- **Current:** one file = one book (`walkLibrary()` returns flat `.m4b` paths)
+- **Required:** one folder = one book; multiple `.mp3` files = ordered tracks within that book
+
+**New abstraction: `BookCandidate`**
+
+```typescript
+type BookCandidate =
+  | { type: 'm4b'; filePath: string }
+  | { type: 'mp3-folder'; folderPath: string; trackPaths: string[] }
+```
+
+`walkLibrary()` is refactored to produce `BookCandidate[]`. A folder qualifies as an MP3 book if it contains one or more `.mp3` files and no `.m4b` files (a folder with a `.m4b` is still a `.m4b` book).
+
+#### Track ordering for MP3 folders
+
+MP3 audiobook folder naming is inconsistent. Research into audiobookshelf's scanner (the reference implementation) and real-world collections confirms these patterns exist:
+
+| Pattern | Example filenames |
+|---------|------------------|
+| ID3 track tag | `track` field in ID3 = `1`, `2`, `3` |
+| Numeric prefix | `01 - Chapter 1.mp3`, `002_intro.mp3` |
+| Natural filename sort | `Part 1.mp3`, `Part 2.mp3` |
+| CD/Disc numbering | `disc1/01.mp3`, `disc2/01.mp3` |
+
+**Recommended ordering algorithm (no library needed):**
+1. Call ffprobe on each file to get ID3 `track` tag (already free via `probeFile()`).
+2. If all files have numeric `track` tags → sort by parsed integer.
+3. Otherwise → natural sort by filename (sort strings with embedded numbers parsed as integers, not lexicographically). This is ~10 lines of TypeScript; no library required.
+
+Natural sort implementation:
+
+```typescript
+export function naturalSort(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+}
+```
+
+`String.prototype.localeCompare` with `{ numeric: true }` is the standard approach, available in all V8/JavaScriptCore environments including Bun. No library needed.
+
+#### Book-level metadata for MP3 folders
+
+Metadata is derived from the **first track** via ffprobe (same as audiobookshelf's approach). Fields: `title` from `album` tag, `author` from `artist`/`album_artist`, `year` from `date`, etc. The existing `normalizeTag()` function handles this unchanged.
+
+Fallback chain (same priority order as .m4b, already implemented in `fallback.ts`):
+1. ID3 tags from first track (ffprobe)
+2. `metadata.json` in the folder (already implemented in `applyFallbackMetadata()`)
+3. Folder name as title (already implemented)
+
+**Additional fallback for deeply nested structures:** For a folder like `Author Name/Book Title/`, the parent directory name can be used as the author fallback if the `author` field is still null after step 2. This is a single `path.basename(path.dirname(folderPath))` call — no library needed.
+
+#### Database: no schema changes needed
+
+MP3 folders are stored as books with `file_path = folderPath` (the directory path). Tracks are stored as chapters: `chapter_idx = trackIndex`, `start_sec = sum of previous track durations`, `title = track title or filename`. The existing `books` and `chapters` schema accommodates this without modification.
+
+The `file_mtime` staleness check for MP3 folders uses `Math.max(...trackPaths.map(p => fs.statSync(p).mtimeMs))` — the newest file mtime in the folder.
+
+---
+
+### 5. Reading Progress Tiles (Frontend)
+
+**Verdict: Alpine.js store + CSS. No new library needed.**
+
+The library grid already renders book tiles with Alpine.js. Progress percentage is `(position_sec / duration_sec) * 100`, clamped to `[0, 100]`. Display as a CSS progress bar overlaid on the tile cover image.
+
+The Alpine.js `$store.progress` map is populated on login by calling `GET /api/progress` (returns all records for the authenticated user). Each tile reads `$store.progress[book.id]` reactively.
+
+No new libraries, no build step changes.
+
+---
+
+## Summary: New Dependencies
+
+| Dependency | Add? | Reason |
+|------------|------|--------|
+| `music-metadata` | NO | Bun compatibility issues open; ffprobe already handles ID3 tags from MP3 files; no new library needed |
+| Any WebSocket library | NO | Hono `streamSSE()` covers the rescan progress use case |
+| Any schema migration library | NO | bun:sqlite ALTER TABLE is sufficient for adding the `progress` table |
+| `idb` or any IndexedDB wrapper | NO | Project already uses raw IndexedDB; v1.0 decision validated |
+| Any chart/visualization library | NO | CSS progress bar is sufficient for tile overlays |
+
+**Net new npm dependencies: 0**
+
+---
+
+## Schema Addition Required
+
+One migration to `src/db/schema.ts`:
+
+```sql
+CREATE TABLE IF NOT EXISTS progress (
+  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  book_id      INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+  position_sec REAL    NOT NULL DEFAULT 0,
+  chapter_idx  INTEGER NOT NULL DEFAULT 0,
+  updated_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, book_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_progress_user_id ON progress(user_id);
+```
+
+No migration framework needed — `CREATE TABLE IF NOT EXISTS` is idempotent and safe to add to the existing `initializeDatabase()` function.
+
+---
+
+## New API Surface
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `GET /api/admin/users` | adminOnly | List all users (needed for admin UI display) |
+| `POST /api/admin/rescan` | adminOnly | Trigger synchronous rescan, return count summary |
+| `GET /api/admin/rescan/stream` | adminOnly | SSE stream of rescan progress events |
+| `PUT /api/progress/:bookId` | authenticated | Upsert progress for current user |
+| `GET /api/progress` | authenticated | Fetch all progress records for current user |
+| `GET /api/progress/:bookId` | authenticated | Fetch single book progress |
+
+`GET /api/admin/users` is the one genuinely missing route — the existing `users.ts` has POST, DELETE, PATCH but no GET for listing.
+
+---
+
+## Integration Points with Existing Code
+
+| Existing module | Change required |
+|-----------------|----------------|
+| `src/scanner/walk.ts` | Refactor `walkLibrary()` to return `BookCandidate[]` instead of `string[]`; add MP3 folder detection |
+| `src/scanner/index.ts` | Add `scanMp3Folder()` alongside existing `scanFile()`; update `scanLibrary()` to dispatch by candidate type |
+| `src/scanner/fallback.ts` | Add author-from-parent-folder fallback for MP3 folders |
+| `src/db/schema.ts` | Add `progress` table |
+| `src/types.ts` | Add `Progress` interface, `BookCandidate` type |
+| `src/server.ts` | Mount new admin and progress routes |
+| `public/admin.html` | New file — Alpine.js admin page |
+| `public/sw.js` | No changes needed for progress sync |
+
+---
+
+## What NOT to Add
+
+| Avoid | Why |
+|-------|-----|
+| `music-metadata` npm package | Open Bun compatibility issues; ffprobe already installed and handles MP3 ID3 tags identically |
+| `better-sqlite3` | Confirmed incompatible with Bun's V8 C++ API — already rejected in v1.0 |
+| Any ORM (Prisma, Drizzle, Kysely) | Overkill; bun:sqlite's synchronous prepared statements are sufficient; adds build complexity |
+| WebSockets | SSE is correct for one-way server-to-client rescan progress |
+| Any state management library (Zustand, etc.) | Alpine.js `$store` is sufficient; no build step |
+| Schema migration framework (db-migrate, etc.) | `CREATE TABLE IF NOT EXISTS` is idempotent; single-container deployment has no concurrent migration risk |
+| `node-id3` or similar | ffprobe handles ID3 reading; redundant |
+
+---
+
+## Confidence Assessment
+
+| Area | Confidence | Source |
+|------|------------|--------|
+| ffprobe reads MP3 ID3 tags (same JSON format) | HIGH | Confirmed via ffprobe docs, existing codebase already handles the output format |
+| Hono `streamSSE()` built into 4.x | HIGH | Official Hono docs `hono.dev/docs/helpers/streaming` |
+| bun:sqlite supports `ON CONFLICT DO UPDATE` | HIGH | Already used in production in `src/scanner/index.ts`; SQLite 3.24+ feature |
+| `music-metadata` Bun parseFile compatibility | LOW | Bun issue #16402 open; workaround unclear; avoid |
+| `String.localeCompare` numeric sort in Bun | HIGH | Standard ECMAScript; Bun's JavaScriptCore implements the full Intl API |
+| MP3 folder naming patterns | MEDIUM | Based on audiobookshelf scanner docs + real-world patterns; edge cases will surface in UAT |
+| CSS progress bar sufficient for tiles | HIGH | No animation or complex interaction required |
 
 ---
 
 ## Sources
 
-- https://hono.dev/docs/getting-started/nodejs — Hono Node.js adapter, verified March 2026. Version 4.12.8 confirmed from GitHub releases.
-- https://github.com/honojs/hono/releases — Hono version history, latest 4.12.8 as of March 14, 2026.
-- https://github.com/WiseLibs/better-sqlite3 — better-sqlite3 v12.8.0, published ~8 days before research date.
-- https://github.com/oven-sh/bun/issues/10440 — Bun range request bug confirmed fixed in v1.1.9, current Bun is 1.2.x+.
-- https://bun.com/docs/guides/util/hash-a-password — Bun.password built-in, Bun-only, confirmed no npm package needed.
-- https://github.com/fluent-ffmpeg/node-fluent-ffmpeg/issues/1324 — Deprecation/archival confirmed May 2025 by maintainer.
-- https://github.com/GoogleChrome/workbox/releases — Workbox 7.4.0 is latest, November 2025.
-- https://alpinejs.dev/essentials/installation — Alpine.js 3.15.8 CDN usage confirmed.
-- https://guptadeepak.com/the-complete-guide-to-password-hashing-argon2-vs-bcrypt-vs-scrypt-vs-pbkdf2-2026/ — Argon2id recommended as 2025/2026 standard.
-- https://www.npmjs.com/package/@node-rs/argon2 — @node-rs/argon2 confirmed no gyp, precompiled Rust binary.
-- WebSearch (MEDIUM confidence): Docker Alpine + ffmpeg pattern, multi-stage builds, Hono session middleware options.
-
----
-*Stack research for: Self-hosted audiobook PWA — Spine*
-*Researched: 2026-03-22*
+- `https://hono.dev/docs/helpers/streaming` — Hono streamSSE API, confirmed built-in to Hono 4.x (HIGH confidence)
+- `https://github.com/oven-sh/bun/issues/16402` — music-metadata parseWebStream/parseBlob Bun compatibility issue, open as of 2026-03-23 (HIGH confidence)
+- `https://libraries.io/npm/music-metadata` — music-metadata 11.12.3 published 2026-03-12 (HIGH confidence)
+- `https://www.audiobookshelf.org/guides/book-scanner/` — MP3 folder structure and metadata priority patterns (MEDIUM confidence)
+- `https://bun.com/docs/runtime/sqlite` — bun:sqlite feature set (HIGH confidence)
+- `https://stegard.net/2022/02/extract-media-file-tags-with-ffprobe/` — ffprobe format_tags JSON output for audio files (HIGH confidence)
+- Existing codebase (`src/scanner/probe.ts`, `src/scanner/index.ts`) — confirmed ON CONFLICT DO UPDATE already in use (HIGH confidence)

@@ -1,441 +1,552 @@
-# Architecture Research
+# Architecture Patterns: v1.1 Integration
 
-**Domain:** Self-hosted audiobook PWA (Node/Bun backend, Alpine.js + Workbox frontend)
-**Researched:** 2026-03-22
-**Confidence:** HIGH
+**Domain:** Self-hosted audiobook platform — adding admin UI, progress sync, MP3 scanning, progress tiles
+**Researched:** 2026-03-23
+**Based on:** Direct codebase analysis (src/server.ts, src/routes/*, src/scanner/*, src/db/schema.ts, public/index.html)
 
-## Standard Architecture
+---
 
-### System Overview
+## Existing Architecture (v1.0 Baseline)
 
-```
-┌───────────────────────────────────────────────────────────────┐
-│                      CLIENT LAYER (PWA)                        │
-│                                                                │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐   │
-│  │  Alpine.js  │  │ Audio Player│  │  Download Manager   │   │
-│  │  UI/Router  │  │ (Media API) │  │  (fetch + progress) │   │
-│  └──────┬──────┘  └──────┬──────┘  └──────────┬──────────┘   │
-│         │                │                      │              │
-│  ┌──────▼──────────────────────────────────────▼──────────┐   │
-│  │              Alpine Stores (shared state)               │   │
-│  │   auth · library · player · progress · downloads       │   │
-│  └──────────────────────────┬──────────────────────────────┘   │
-│                             │                                  │
-│  ┌──────────────────────────▼──────────────────────────────┐   │
-│  │              Service Worker (Workbox)                    │   │
-│  │   App Shell cache · Audio CacheFirst + RangeRequests    │   │
-│  │   API NetworkFirst · Offline fallback                   │   │
-│  └──────────────────────────┬──────────────────────────────┘   │
-│                             │                                  │
-│  ┌──────────────┐  ┌────────▼────────┐  ┌──────────────────┐  │
-│  │  IndexedDB   │  │  Cache Storage  │  │  localStorage    │  │
-│  │  (progress,  │  │  (audio files,  │  │  (session token, │  │
-│  │   metadata)  │  │   app shell)    │  │   simple prefs)  │  │
-│  └──────────────┘  └─────────────────┘  └──────────────────┘  │
-└─────────────────────────────┬─────────────────────────────────┘
-                              │ HTTP (REST + Range Requests)
-                              │ JWT Bearer token
-┌─────────────────────────────▼─────────────────────────────────┐
-│                     SERVER LAYER (Node/Bun)                     │
-│                                                                │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │                  HTTP Server (Express/Hono)              │  │
-│  │  Auth middleware → Route handlers → Response             │  │
-│  └──────────────────────────────────────────────────────────┘  │
-│                                                                │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────┐   │
-│  │ Auth Module │  │ Library API  │  │  Stream Handler    │   │
-│  │ (JWT, bcrypt│  │ (books,      │  │  (byte-range,      │   │
-│  │  sessions)  │  │  chapters,   │  │   Content-Range,   │   │
-│  │             │  │  covers)     │  │   206 responses)   │   │
-│  └─────────────┘  └──────────────┘  └────────────────────┘   │
-│                                                                │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │                   Library Scanner                        │   │
-│  │  fs.watch → ffprobe probe → normalize → persist         │   │
-│  │  Runs at startup + on file changes                      │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                                                                │
-│  ┌──────────────────┐  ┌──────────────────────────────────┐   │
-│  │  Progress API    │  │         Cover Cache              │   │
-│  │  (read/write per │  │  (extracted covers → disk,       │   │
-│  │   user/book)     │  │   served as static files)        │   │
-│  └──────────────────┘  └──────────────────────────────────┘   │
-└─────────────────────────────┬─────────────────────────────────┘
-                              │
-┌─────────────────────────────▼─────────────────────────────────┐
-│                       DATA LAYER                                │
-│                                                                │
-│  ┌──────────────┐  ┌───────────────────┐  ┌────────────────┐  │
-│  │  SQLite DB   │  │  Filesystem Media │  │  Cover Cache   │  │
-│  │  users       │  │  /audiobooks/     │  │  /metadata/    │  │
-│  │  books       │  │    *.m4b          │  │  covers/       │  │
-│  │  chapters    │  │                   │  │                │  │
-│  │  progress    │  │                   │  │                │  │
-│  └──────────────┘  └───────────────────┘  └────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Component Responsibilities
-
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| Alpine.js UI | Page routing, reactive DOM, component state | `x-data` per page, Alpine Stores for shared state, ES module imports |
-| Audio Player | Playback control, chapter navigation, Media Session API | HTML `<audio>` element + Alpine component wrapping Web Audio APIs |
-| Download Manager | Whole-book offline acquisition, progress reporting | `fetch()` streaming response into Cache Storage, progress tracked in IndexedDB |
-| Service Worker (Workbox) | App shell caching, audio offline delivery, API caching | `workbox-strategies` CacheFirst for audio, NetworkFirst for API, `workbox-range-requests` plugin |
-| HTTP Server | Route handling, auth middleware, static serving | Express or Hono; one entry-point file wiring all routes |
-| Auth Module | Password hashing, JWT issuance, token validation | bcrypt for hashing, jsonwebtoken for JWT; middleware validates on every protected route |
-| Library Scanner | .m4b discovery, ffprobe extraction, DB normalization | Child process spawning ffprobe, result persisted to SQLite; runs once at startup and on `fs.watch` events |
-| Stream Handler | Byte-range audio delivery | Parses `Range:` header, opens `fs.createReadStream({start, end})`, responds 206 with `Content-Range` |
-| Progress API | Per-user per-book position persistence | REST endpoints reading/writing SQLite progress rows; client calls manually ("sync") |
-| SQLite DB | Structured data persistence | `better-sqlite3` (synchronous, no async overhead); single file in `/config/` volume |
-| Filesystem Media | Source of truth for .m4b files | Read-only mount in Docker; server never writes here |
-| Cover Cache | Extracted cover art served as static files | ffprobe extracts embedded art once at scan time, stored as `{book-id}.jpg` |
-
-## Recommended Project Structure
+### Component Map
 
 ```
-spine/
-├── server/
-│   ├── index.ts              # Entry point — wires server, scanner, DB
-│   ├── db/
-│   │   ├── schema.ts         # Table definitions (better-sqlite3)
-│   │   ├── migrations/       # Sequential schema migrations
-│   │   └── queries/          # Named query functions (books, users, progress)
-│   ├── auth/
-│   │   ├── middleware.ts     # JWT validation middleware
-│   │   ├── routes.ts         # POST /auth/login, POST /auth/logout
-│   │   └── passwords.ts      # bcrypt hash/compare helpers
-│   ├── library/
-│   │   ├── scanner.ts        # fs.watch + ffprobe orchestration
-│   │   ├── probe.ts          # ffprobe subprocess wrapper, result types
-│   │   └── routes.ts         # GET /api/books, GET /api/books/:id
-│   ├── stream/
-│   │   └── routes.ts         # GET /audio/:id — byte-range streaming
-│   ├── progress/
-│   │   └── routes.ts         # GET/PUT /api/progress/:bookId
-│   └── covers/
-│       └── routes.ts         # GET /covers/:bookId — static cover serving
-├── public/
-│   ├── index.html            # App shell (Alpine + Workbox bootstrap)
-│   ├── sw.js                 # Service worker (Workbox injectManifest target)
-│   ├── js/
-│   │   ├── app.js            # Alpine.start() + store registration
-│   │   ├── stores/
-│   │   │   ├── auth.js       # Alpine.store('auth', ...)
-│   │   │   ├── library.js    # Alpine.store('library', ...)
-│   │   │   ├── player.js     # Alpine.store('player', ...)
-│   │   │   └── progress.js   # Alpine.store('progress', ...)
-│   │   └── components/
-│   │       ├── player.js     # Alpine.data('player', ...)
-│   │       ├── book-card.js  # Alpine.data('bookCard', ...)
-│   │       └── downloader.js # Alpine.data('downloader', ...)
-│   └── css/
-│       └── app.css
-├── Dockerfile
-├── docker-compose.yml
-└── package.json
+┌─────────────────────────────────────────────────────────┐
+│  Bun.serve() → Hono app                                  │
+│                                                          │
+│  /health           (unauthenticated)                    │
+│  /auth/*           (unauthenticated) → auth.ts          │
+│  /api/*  ← authMiddleware → {                           │
+│    /api/books                → books.ts                 │
+│    /api/books/:id            → books.ts                 │
+│    /api/books/:id/audio      → audio.ts                 │
+│    /api/books/:id/cover      → cover.ts                 │
+│    /api/users   (adminOnly)  → users.ts                 │
+│  }                                                      │
+│  /*                          → serveStatic(./public)    │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  bun:sqlite — spine.db                                   │
+│  tables: books, chapters, users, sessions               │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  Scanner                                                 │
+│  walkLibrary → scanFile → probeFile (ffprobe spawn)      │
+│             → normalizeMetadata → extractCoverArt        │
+│             → applyFallbackMetadata → upsert DB          │
+│  Watcher: setInterval(scanLibrary, 5min)                 │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  Alpine.js stores (index.html inline)                    │
+│  $store.auth    { loggedIn, username, role }             │
+│  $store.app     { view, isOffline }                      │
+│  $store.library { books[], query, selectedBook, ... }    │
+│  $store.player  { book, playing, currentTime, ... }      │
+│  $store.downloads { states, ... }                        │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  IndexedDB (browser)                                     │
+│  progressDB  — "spine-progress" store                   │
+│    key: username::bookId                                 │
+│    value: { timestamp, chapterIdx, speed, updatedAt }   │
+│  downloadDB  — "spine-downloads" store                   │
+│    key: bookId                                           │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  Workbox Service Worker (sw.js)                          │
+│  CacheFirst: /api/books/:id/audio, /api/books/:id/cover │
+│  NetworkFirst: /api/*, /auth/*                          │
+│  Precache: index.html, style.css, player-utils.js, ...  │
+└─────────────────────────────────────────────────────────┘
 ```
 
-### Structure Rationale
+### Current Data Flow: Progress
 
-- **server/db/queries/:** Encapsulates all SQL behind named functions — routes never write raw SQL, which keeps migration paths clean and prevents injection footguns.
-- **server/library/scanner.ts vs probe.ts:** Scanner owns the orchestration lifecycle (what to scan, when); probe owns the ffprobe subprocess interface. Split allows unit-testing probe parsing without touching the filesystem watcher.
-- **server/stream/routes.ts:** Stream handler is isolated because byte-range logic is stateless and has no dependency on the library model — it only needs the file path from the DB.
-- **public/js/stores/:** Alpine Stores are the single source of truth for cross-component state. Components (`x-data`) only hold local ephemeral state (e.g., "is this dropdown open?"). Keeps state predictable.
-- **public/sw.js:** Service worker is a hand-authored file using Workbox's `injectManifest` strategy (not `generateSW`) so audio routing rules and IndexedDB access can be written explicitly.
+```
+Player plays → _saveProgress() every 15s
+  → progressDB.save(username, bookId, { timestamp, chapterIdx, speed, updatedAt })
+  → IndexedDB "spine-progress" (local only, device-specific)
 
-## Architectural Patterns
+On book open → progressDB.get(username, bookId)
+  → if found: seek audio to saved timestamp
+```
 
-### Pattern 1: Normalize-Once Ingest
+Progress is entirely client-side in IndexedDB, keyed by `username::bookId`.
 
-**What:** The library scanner runs ffprobe on each .m4b file exactly once at ingest time (startup + file changes) and writes normalized book/chapter records to SQLite. Subsequent API requests read from the DB — never call ffprobe at request time.
+---
 
-**When to use:** Any time metadata extraction is expensive (ffprobe adds ~100–500ms per file). The DB is the cache. File changes trigger re-scan of changed files only.
+## v1.1 Feature Integration Analysis
 
-**Trade-offs:** Requires a "dirty" detection strategy (file mtime or size change) to know when to re-probe. Cover images need to be extracted to disk at scan time as well.
+### Feature 1: Admin UI (user creation / deletion / password reset)
 
-**Example:**
+**Current state:** The backend API already exists. `src/routes/users.ts` provides:
+- `POST /api/users` — create user (adminOnly)
+- `DELETE /api/users/:id` — delete user (adminOnly)
+- `PATCH /api/users/:id/password` — reset password (adminOnly)
+
+Missing: `GET /api/users` — list all users. Required for the admin UI to populate a user table. This is a one-line addition to users.ts.
+
+**What needs to be built:**
+
+Backend (new endpoint):
+```
+GET /api/users  (adminOnly) — returns [{ id, username, role, created_at }]
+```
+
+Frontend (new view):
+- New `$store.app.view === 'admin'` branch in index.html
+- Nav bar gets an "Admin" button visible only when `$store.auth.role === 'admin'`
+- Admin view renders user list from `GET /api/users` + inline forms for create / delete / reset password
+- All CRUD calls use existing `/api/users` endpoints
+
+**Integration points:**
+- `$store.auth.role` is already set on login and session restore — no changes needed
+- `adminOnly` middleware on users.ts already enforces server-side
+- Add `'admin'` to `$store.app.view` union and add nav link guard: `x-show="$store.auth.role === 'admin'"`
+
+**No schema changes needed.** Users table already has `id, username, role, created_at`.
+
+---
+
+### Feature 2: Admin-Triggered Library Rescan
+
+**Current state:** `scanLibrary()` is called at startup and on a 5-minute `setInterval` in `watcher.ts`. There is no HTTP endpoint to trigger it on demand.
+
+**What needs to be built:**
+
+Backend (new endpoint):
+```
+POST /api/admin/rescan  (adminOnly)
+  → calls scanLibrary(db, LIBRARY_ROOT) asynchronously
+  → returns { status: 'scanning' } immediately (do not await — scan can take seconds)
+```
+
+The `LIBRARY_ROOT` value is only available inside the `if (process.env['NODE_ENV'] !== 'test')` block in server.ts. It needs to be stored at module level so routes can access it.
+
+Refactor in server.ts:
 ```typescript
-// scanner.ts
-async function scanLibrary(dir: string) {
-  const files = await glob('**/*.m4b', { cwd: dir });
-  for (const file of files) {
-    const known = db.getBookByPath(file);
-    const stat = fs.statSync(path.join(dir, file));
-    if (known && known.mtime === stat.mtimeMs) continue; // unchanged
-    const metadata = await probe(path.join(dir, file));
-    db.upsertBook({ ...metadata, mtime: stat.mtimeMs });
-  }
+// Promote to module scope so rescan route can access it
+const libraryRoot = process.env['LIBRARY_ROOT'] ?? '/books'
+```
+
+Optional: `GET /api/admin/scan-status` returning `{ scanning: boolean, lastScanAt: string }` — requires a simple in-memory scan-state tracker (not persisted to DB).
+
+**Integration points:**
+- `scanLibrary` signature does not change — it already accepts `db` and `libraryRoot`
+- Admin UI calls `POST /api/admin/rescan`, shows a spinner while scanning
+- No database schema changes needed
+
+**Build dependency:** Depends on Admin UI feature (needs the admin view to host the rescan button).
+
+---
+
+### Feature 3: Progress Sync to Backend
+
+**Current state:** Progress lives in IndexedDB only. Schema is `{ timestamp, chapterIdx, speed, updatedAt }` keyed by `username::bookId`.
+
+**What needs to be built:**
+
+Database migration — new table:
+```sql
+CREATE TABLE IF NOT EXISTS progress (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  book_id     INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+  position_sec REAL   NOT NULL,
+  chapter_idx  INTEGER NOT NULL DEFAULT 0,
+  speed        REAL   NOT NULL DEFAULT 1.0,
+  updated_at   TEXT   NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_id, book_id)
+);
+CREATE INDEX IF NOT EXISTS idx_progress_user_id ON progress(user_id);
+```
+
+Backend (new endpoints):
+```
+PUT /api/progress/:bookId
+  body: { position_sec, chapter_idx, speed }
+  → upserts progress row for authenticated user + book
+  → returns { ok: true }
+
+GET /api/progress/:bookId
+  → returns { position_sec, chapter_idx, speed, updated_at } or null
+```
+
+Frontend changes — sync strategy (local-first with push/pull):
+
+**Push:** After `progressDB.save()`, also POST to backend in background (fire-and-forget, never block playback):
+```javascript
+async _saveProgress() {
+  const data = { timestamp: ..., chapterIdx: ..., speed: ..., updatedAt: Date.now() }
+  await progressDB.save(username, bookId, data)
+  // Sync to backend — non-blocking
+  fetch('/api/progress/' + bookId, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ position_sec: data.timestamp, chapter_idx: data.chapterIdx, speed: data.speed })
+  }).catch(() => {}) // ignore failures — local IndexedDB is source of truth
 }
 ```
 
-### Pattern 2: Byte-Range Streaming (206 Partial Content)
-
-**What:** The audio endpoint reads the HTTP `Range` header, opens a file stream at the requested byte offset, and returns status 206 with appropriate `Content-Range` and `Accept-Ranges` headers. This is required for `<audio>` seeking to work correctly.
-
-**When to use:** Every audio file request. Browsers always send range requests for `<audio>` elements. Without this, scrubbing fails.
-
-**Trade-offs:** Adds ~10 lines of header parsing per endpoint but is straightforward. No transcoding needed for .m4b (AAC in MP4 container is natively supported by all modern browsers).
-
-**Example:**
-```typescript
-// stream/routes.ts
-app.get('/audio/:id', requireAuth, (req, res) => {
-  const book = db.getBookById(req.params.id);
-  const { size } = fs.statSync(book.filePath);
-  const range = req.headers.range;
-  if (!range) {
-    res.writeHead(200, { 'Content-Length': size, 'Content-Type': 'audio/mp4' });
-    fs.createReadStream(book.filePath).pipe(res);
-    return;
-  }
-  const [start, end = size - 1] = range.replace('bytes=', '').split('-').map(Number);
-  res.writeHead(206, {
-    'Content-Range': `bytes ${start}-${end}/${size}`,
-    'Accept-Ranges': 'bytes',
-    'Content-Length': end - start + 1,
-    'Content-Type': 'audio/mp4',
-  });
-  fs.createReadStream(book.filePath, { start, end }).pipe(res);
-});
-```
-
-### Pattern 3: Local-First Progress with Manual Sync
-
-**What:** Playback position is written to IndexedDB on every chapter/timestamp update (throttled, every 5s). The backend progress API is only called when the user explicitly triggers "sync" or when the app comes online after being offline. On conflict (same book, multiple devices), last-write-wins using a timestamp.
-
-**When to use:** Any offline-capable app where the server is optional. Avoids tight coupling between playback and network availability.
-
-**Trade-offs:** Conflict resolution is simple (last-write-wins) — acceptable for a household with a few users who rarely listen on two devices simultaneously. More complex CRDT-style merging is out of scope.
-
-### Pattern 4: Workbox CacheFirst + RangeRequests for Offline Audio
-
-**What:** The service worker registers a route matching `audio/*` requests, using `CacheFirst` strategy with `RangeRequestsPlugin`. Audio must be explicitly added to Cache Storage during download (not lazily cached on first play). Once cached, the service worker synthesizes partial-content (206) responses from the cached full file.
-
-**When to use:** Whole-book offline downloads. The browser's `<audio>` element always makes range requests; the `RangeRequestsPlugin` handles this transparently from cached data.
-
-**Trade-offs:** Requires the `crossorigin` attribute on `<audio>` even for same-origin URLs (browser quirk). Cache Storage has per-origin limits (typically 20–50% of available disk); large audiobook libraries will fill it. The download manager must track which books are cached so the UI can reflect offline availability.
-
-**Example:**
+**Pull on book open:** When fetching a book to resume, check backend progress after checking local IndexedDB. Use `updated_at` to resolve conflicts (take the more recent):
 ```javascript
-// sw.js
-import { CacheFirst } from 'workbox-strategies';
-import { RangeRequestsPlugin } from 'workbox-range-requests';
-import { CacheableResponsePlugin } from 'workbox-cacheable-response';
+// On book open (selectBook / play):
+const localProgress = await progressDB.get(username, bookId)
+const remoteRes = await fetch('/api/progress/' + bookId)
+const remoteProgress = remoteRes.ok ? await remoteRes.json() : null
 
-registerRoute(
-  ({ url }) => url.pathname.startsWith('/audio/'),
-  new CacheFirst({
-    cacheName: 'audiobooks',
-    plugins: [
-      new RangeRequestsPlugin(),
-      new CacheableResponsePlugin({ statuses: [200] }),
-    ],
-  })
+// Conflict resolution: take more recent by updatedAt
+const useRemote = remoteProgress &&
+  (!localProgress || remoteProgress.updated_at > new Date(localProgress.updatedAt).toISOString())
+const resolved = useRemote ? remoteProgress : localProgress
+```
+
+**Conflict handling rule:** Whichever has the more recent `updated_at` wins. Write winner back to both stores.
+
+**Integration points:**
+- `_saveProgress()` in `$store.player` gets a non-blocking `fetch` appended
+- `selectBook()` in `$store.library` gets a progress-fetch-and-compare step before seeking
+- `initAudio()` / session restore block at top of index.html also needs the pull logic
+- No changes to IndexedDB schema — it remains the source of truth offline
+
+---
+
+### Feature 4: Reading Progress Tiles (% indicator on library grid)
+
+**Current state:** Book cards in the library grid show cover, title, author. No progress indicator.
+
+**What needs to be built:**
+
+This feature depends on having progress data accessible in the frontend at library-load time. Two approaches:
+
+**Option A (no backend change): Read from IndexedDB at render time.**
+Each book card calls `progressDB.get(username, book.id)` to get local progress. Compute `percent = position_sec / duration_sec * 100`. This is async — requires either eager loading into a store map or lazy/reactive per-card loading.
+
+Recommended implementation: eager load on library load. In `$store.library.loadBooks()`, after fetching books, batch-read all progress entries from IndexedDB into a `$store.library.progressMap` (`{ [bookId]: percent }`). Each card template reads `$store.library.progressMap[book.id]` reactively.
+
+```javascript
+// In loadBooks():
+this.books = await res.json()
+// Eagerly load progress for all books
+const progressMap = {}
+for (const book of this.books) {
+  const p = await progressDB.get(Alpine.store('auth').username, book.id)
+  if (p && book.duration_sec) {
+    progressMap[book.id] = Math.min(100, Math.round((p.timestamp / book.duration_sec) * 100))
+  }
+}
+this.progressMap = progressMap
+```
+
+Card template addition:
+```html
+<!-- Progress bar at bottom of card-text -->
+<div class="progress-bar-wrap" x-show="$store.library.progressMap[book.id] > 0">
+  <div class="progress-bar-fill"
+       :style="'width:' + ($store.library.progressMap[book.id] || 0) + '%'"></div>
+</div>
+```
+
+**Option B (with backend): `GET /api/progress/all` returns a map of all progress for current user.**
+Simpler frontend (one fetch vs N IndexedDB reads), works across devices, requires the progress sync feature to be complete first. This is the preferred approach when progress sync is implemented.
+
+**Recommendation:** Build Option A first (works immediately with local IndexedDB), then upgrade to Option B once progress sync is live. Both coexist — the progressMap can be sourced from either.
+
+**Integration points:**
+- `$store.library` gets a new `progressMap: {}` field
+- `loadBooks()` gets an eager batch-load of progress after books are fetched
+- Book card template gets a visual indicator (CSS progress bar or % text)
+- When `_saveProgress()` fires, also update `$store.library.progressMap[bookId]` in memory for live updates
+
+---
+
+### Feature 5: MP3 Folder Support
+
+**Current state:** `walkLibrary()` in `src/scanner/walk.ts` returns only `.m4b` files. `scanFile()` assumes a single-file book. `probeFile()` uses ffprobe and works with `.mp3` as well, but chapters are not embedded in MP3 files — they must be inferred from track order.
+
+**Design constraint (from PROJECT.md):** "MP3 audiobook collections have inconsistent folder structures — scanner must handle multiple naming patterns."
+
+**What needs to be built:**
+
+**Scanner changes:**
+
+`walkLibrary()` needs to be extended to also discover MP3 folders. An "MP3 folder" is a directory containing one or more `.mp3` files with no `.m4b` sibling in the same folder.
+
+New function: `walkLibraryForMp3Folders(root: string): string[][]`
+- Returns an array of file-path arrays, where each inner array is the ordered list of `.mp3` files for one book
+- Sort order within a folder: sort by filename (track number prefix if present, otherwise alphabetical)
+- Keyed by the folder path as the "book identifier"
+
+Alternatively, unify under a new `walkAll()` that returns a discriminated union:
+```typescript
+type BookSource =
+  | { type: 'm4b'; path: string }
+  | { type: 'mp3folder'; folderPath: string; files: string[] }
+```
+
+**`scanMp3Folder(db, folderPath, files)`** — new parallel to `scanFile()`:
+- Uses `ffprobe` on the first `.mp3` to extract title/author/narrator tags (fallback to folder name)
+- Uses `ffprobe` on all files to get individual durations
+- Derives chapters from individual files: each file = one chapter
+  - chapter title = filename (strip leading `01 - `, `01_`, etc.) or embedded title tag
+  - chapter start_sec = cumulative end_sec of previous chapter
+- `file_path` for the book row = folder path (not an individual file) — needs a new column or convention
+- `file_mtime` = max mtime of all `.mp3` files in folder (for incremental scan)
+- `codec` = mp3 (from ffprobe audio stream)
+
+**Database change:**
+The `books` table `file_path` is currently a UNIQUE path to a single `.m4b` file. For MP3 folders, it becomes the folder path. This works with the existing UNIQUE constraint — no schema change needed.
+
+New column needed for audio serving:
+```sql
+ALTER TABLE books ADD COLUMN source_type TEXT NOT NULL DEFAULT 'm4b';
+-- values: 'm4b' | 'mp3folder'
+```
+
+Or store as part of `codec` (since mp3 already differentiates). However, the audio route needs to know how to serve the audio — either stream the single `.m4b`, or for MP3 folders, either: (a) create a playlist/concatenated stream, or (b) store individual file paths in a new `tracks` table.
+
+**Audio serving approach for MP3 folders:**
+
+Option A (simplest): Store a concatenation manifest in a new `tracks` table. The audio route serves files individually based on chapter/position, stitching via HTTP range logic. This is complex.
+
+Option B (recommended): On scan, produce a single concatenated `.m4b`-like container for the MP3 folder using ffmpeg. Store the synthetic file in `/data/generated/`. Serve it like a normal `.m4b`. This is a one-time cost at scan time and keeps the audio route simple.
+
+However, transcoding changes the "no transcoding" constraint. The project explicitly states "serve .m4b directly" and "no transcoding."
+
+Option C (pragmatic): Add a `tracks` table with individual file paths + time offsets. The audio route serves individual MP3 files and the frontend uses the chapters (which map to tracks) to manage playback position across files. The `<audio>` element src changes when crossing a chapter/track boundary.
+
+**Recommended approach:** Option C with tracks table, but as a distinct sub-feature. The tracks table enables future per-chapter download. The frontend player would need to handle track-boundary seeking.
+
+**New `tracks` table:**
+```sql
+CREATE TABLE IF NOT EXISTS tracks (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  book_id      INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+  track_idx    INTEGER NOT NULL,
+  file_path    TEXT    NOT NULL,
+  start_sec    REAL    NOT NULL,   -- cumulative offset (absolute book time)
+  duration_sec REAL    NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_tracks_book_id ON tracks(book_id);
 ```
 
-## Data Flow
-
-### Request Flow — Library Browse
-
+**New audio route behavior for MP3 folders:**
 ```
-User opens /library
-    ↓
-Alpine.store('library').init()
-    ↓
-fetch('/api/books', { headers: { Authorization: 'Bearer ...' } })
-    ↓
-Service Worker (NetworkFirst) → hits network if online
-    ↓
-Auth middleware validates JWT → LibraryController queries SQLite
-    ↓
-JSON response: [{ id, title, author, coverUrl, duration, chapterCount }]
-    ↓
-Alpine.store('library').books = response.json()
-    ↓
-DOM updates reactively via x-for
+GET /api/books/:id/audio?track=0  (default track=0)
+  → for m4b: serve books.file_path directly (existing behavior)
+  → for mp3folder: serve tracks[track_idx].file_path with range support
 ```
 
-### Request Flow — Audio Playback
+Or simpler: `GET /api/books/:id/audio/:trackIdx` — explicit track path.
+
+**Frontend player changes for MP3 folders:**
+- Player must detect `book.source_type === 'mp3folder'`
+- Chapter list maps to tracks (chapter_idx === track_idx)
+- When jumping to a chapter: set `audio.src = '/api/books/' + id + '/audio/' + chapterIdx`, then seek to 0
+- `currentTime` is chapter-relative for mp3folder books
+
+**Fallback metadata for MP3 folders:** `applyFallbackMetadata` already reads `metadata.json` from the folder — this works as-is for MP3 folders since `folderPath` is the containing directory.
+
+**Integration points:**
+- `walkLibrary` in `walk.ts` extended or a new `walkMp3Folders()` added
+- `scanLibrary` calls both walkers, routes to `scanFile` or `scanMp3Folder`
+- New `src/scanner/mp3folder.ts` — `scanMp3Folder()` and `walkMp3Folders()`
+- New `src/routes/audio.ts` gains track-serving branch
+- Frontend player gains mp3folder awareness (src-swap on chapter jump)
+- `NormalizedMetadata` gets `source_type` field
+- `types.ts` gets `Track` interface
+
+---
+
+## Component Boundary Summary: New vs Modified
+
+### New Components
+
+| Component | Type | Purpose |
+|-----------|------|---------|
+| `src/routes/admin.ts` | New route file | `POST /api/admin/rescan`, optional `GET /api/admin/scan-status` |
+| `src/routes/progress.ts` | New route file | `PUT /api/progress/:bookId`, `GET /api/progress/:bookId`, `GET /api/progress/all` |
+| `src/scanner/mp3folder.ts` | New scanner module | `walkMp3Folders()`, `scanMp3Folder()`, MP3-specific probe/chapter normalization |
+| `$store.library.progressMap` | New store field | In-memory map of bookId → progress percent for tile display |
+| Admin view in index.html | New HTML section | User management UI, rescan button |
+
+### Modified Components
+
+| Component | Change | Why |
+|-----------|--------|-----|
+| `src/db/schema.ts` | Add `progress` table, `tracks` table, `source_type` col on `books` | Progress sync and MP3 folder support |
+| `src/scanner/walk.ts` | Add MP3 folder discovery or extract to shared module | MP3 folder support |
+| `src/scanner/index.ts` | Route to `scanMp3Folder` for MP3 folders | MP3 folder support |
+| `src/routes/users.ts` | Add `GET /api/users` list endpoint | Admin UI needs user list |
+| `src/routes/audio.ts` | Add track-index serving branch for mp3folder books | MP3 folder audio serving |
+| `src/server.ts` | Expose `libraryRoot` at module scope, mount admin + progress routes | Rescan endpoint + new routes |
+| `public/index.html` | `$store.library.progressMap`, admin view, progress sync in player, nav link | All UI features |
+| `public/sw.js` | Update precache revision, add route for `/api/progress/*` | sw cache invalidation |
+
+---
+
+## Data Flow: Progress Sync (v1.1 end state)
 
 ```
-User taps Play on book
-    ↓
-Alpine player component sets <audio src="/audio/:id"> with crossorigin
-    ↓
-Browser emits Range request: bytes=0-65535
-    ↓
-Service Worker checks Cache Storage (CacheFirst)
-    ├── Cache HIT → RangeRequestsPlugin synthesizes 206 response
-    └── Cache MISS → fetch to server → server reads file range → 206 response
-    ↓
-Browser buffers and plays
-    ↓
-Alpine player emits 'timeupdate' every 5s → writes to IndexedDB
+User plays book:
+  → player._saveProgress() every 15s
+    → IndexedDB.save(username, bookId, { timestamp, chapterIdx, speed, updatedAt })
+    → fetch PUT /api/progress/:bookId (fire-and-forget, no await)
+      → server upserts progress table
+
+User opens book (online):
+  → fetch GET /api/progress/:bookId → remoteProgress
+  → IndexedDB.get(username, bookId) → localProgress
+  → pick more recent by updated_at
+  → write winner to both stores
+  → seek audio to resolved position
+
+Library loads:
+  → $store.library.loadBooks() fetches /api/books
+  → fetch GET /api/progress/all (or batch IndexedDB reads)
+  → populate $store.library.progressMap { bookId: percent }
+  → book tiles render progress bars
 ```
 
-### Request Flow — Whole-Book Download
+---
+
+## Data Flow: Admin-Triggered Rescan
 
 ```
-User taps Download
-    ↓
-Alpine downloader component starts fetch('/audio/:id')
-    ↓
-Service Worker is bypassed — download manager uses fetch() directly
-    ↓
-Response body streamed as ReadableStream
-    ↓
-Chunks accumulated in memory buffer → cache.put('/audio/:id', response)
-    ↓
-Progress % tracked: bytesReceived / Content-Length → IndexedDB { id, status: 'downloaded' }
-    ↓
-UI reflects book as available offline
+Admin clicks "Rescan Library":
+  → fetch POST /api/admin/rescan
+    → server: scanLibrary(db, libraryRoot) started (not awaited)
+    → returns { status: 'scanning' }
+  → UI: show "Scanning..." state
+  → optional: poll GET /api/admin/scan-status until done
+  → on completion: $store.library.loadBooks() to refresh UI
 ```
 
-### Request Flow — Progress Sync
+---
+
+## Build Order (Dependencies)
+
+1. **Admin UI + GET /api/users** — no dependencies, low risk. Backend API for user management already exists; this adds the list endpoint and the view.
+
+2. **Admin-triggered rescan** — depends on #1 (rescan button lives in admin view). Requires promoting `libraryRoot` to module scope in server.ts. Otherwise isolated.
+
+3. **Progress sync backend** — independent of #1 and #2. Add the `progress` table migration, the two endpoints, and the `GET /api/progress/all` endpoint. Testable standalone.
+
+4. **Progress tiles** — depends on #3 for multi-device correctness. Can ship with IndexedDB-only reads (Option A) before #3 is done, then upgrade to `GET /api/progress/all` (Option B) when #3 ships.
+
+5. **MP3 folder support** — largest scope. Independent of #1–#4 at the backend. Requires scanner changes, schema migration (tracks table), and audio route changes. Frontend changes are isolated to the player's chapter-jump behavior. Build last because it touches the most files and the audio route.
 
 ```
-User taps "Sync progress"
-    ↓
-Alpine.store('progress').sync()
-    ↓
-Reads all dirty progress records from IndexedDB
-    ↓
-PUT /api/progress/:bookId  { chapterIndex, position, syncedAt }
-    ↓
-Server writes to SQLite progress table (upsert by userId + bookId)
-    ↓
-Mark IndexedDB records as clean
+#1 Admin UI + users list
+  → #2 Rescan trigger (adds button to admin view)
+#3 Progress sync endpoints
+  → #4 Progress tiles (upgrades from local-only to synced)
+#5 MP3 folder support (independent chain)
 ```
 
-### State Management
+---
 
+## Anti-Patterns to Avoid
+
+### Blocking audio playback on progress sync
+
+**What goes wrong:** `await fetch('/api/progress/:bookId')` inside `_saveProgress()` blocks the 15s save loop.
+**Prevention:** The `fetch` call to the backend must be fire-and-forget. IndexedDB remains the write-through store. Network failure must never affect playback.
+
+### Awaiting rescan in the HTTP handler
+
+**What goes wrong:** `await scanLibrary(...)` inside the POST handler times out for large libraries.
+**Prevention:** Start scan with `scanLibrary(db, libraryRoot).catch(...)` (no await), respond immediately with `{ status: 'scanning' }`.
+
+### Treating progress table as primary storage
+
+**What goes wrong:** If the server is unreachable, progress is lost. Offline users can't resume.
+**Prevention:** IndexedDB is always written first. Server is secondary (sync target). Pull from server only when server timestamp is newer.
+
+### Sharing file_path for MP3 tracks across the audio route
+
+**What goes wrong:** Audio route assumes `file_path` is a streamable file. For MP3 folders, `file_path` is a directory.
+**Prevention:** `source_type` column in `books` controls routing. Audio route checks `source_type` first and falls through to track-table lookup for `mp3folder`.
+
+### Progress percent calculation using server-side duration_sec
+
+**What goes wrong:** `duration_sec` is null for malformed files, causing divide-by-zero or NaN in the UI.
+**Prevention:** Guard: `if (book.duration_sec && book.duration_sec > 0) { percent = ... }` — treat null/zero as 0%.
+
+### Re-scanning on rescan triggering duplicate watcher scans
+
+**What goes wrong:** Admin triggers rescan while the 5-minute interval is also mid-scan. Two concurrent `scanLibrary` calls race on DB writes.
+**Prevention:** Add a boolean `_scanInProgress` flag (module-level in scanner or server.ts). If true, `POST /api/admin/rescan` returns `{ status: 'already-scanning' }` without starting a second scan.
+
+---
+
+## Schema Migration Strategy
+
+v1.1 adds columns/tables to an existing live database. bun:sqlite's `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ... ADD COLUMN` are the safe approach.
+
+In `src/db/schema.ts`, append:
+
+```sql
+-- Progress sync
+CREATE TABLE IF NOT EXISTS progress (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  book_id       INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+  position_sec  REAL    NOT NULL DEFAULT 0,
+  chapter_idx   INTEGER NOT NULL DEFAULT 0,
+  speed         REAL    NOT NULL DEFAULT 1.0,
+  updated_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(user_id, book_id)
+);
+CREATE INDEX IF NOT EXISTS idx_progress_user_book ON progress(user_id, book_id);
+
+-- MP3 folder tracks
+CREATE TABLE IF NOT EXISTS tracks (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  book_id       INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+  track_idx     INTEGER NOT NULL,
+  file_path     TEXT    NOT NULL,
+  start_sec     REAL    NOT NULL,
+  duration_sec  REAL    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tracks_book_id ON tracks(book_id);
 ```
-Alpine.store('auth')     ← login/logout, token storage
-Alpine.store('library')  ← book list, search, loaded state
-Alpine.store('player')   ← current book, chapter, position, playing
-Alpine.store('progress') ← local progress map, dirty flags, sync status
-Alpine.store('downloads')← per-book download state, cache availability
 
-Components subscribe via x-bind / x-text referencing stores directly.
-No centralized event bus needed at this scale.
+For the `source_type` column on `books`:
+```sql
+-- bun:sqlite: ALTER TABLE ADD COLUMN is safe (adds with DEFAULT, no rewrite)
+ALTER TABLE books ADD COLUMN source_type TEXT NOT NULL DEFAULT 'm4b';
 ```
 
-### Key Data Flows
+Use `db.exec()` wrapped in a try/catch for the ALTER — it will throw "duplicate column name" if already applied, which is harmless to swallow:
+```typescript
+try {
+  db.exec("ALTER TABLE books ADD COLUMN source_type TEXT NOT NULL DEFAULT 'm4b'")
+} catch {
+  // Column already exists — idempotent
+}
+```
 
-1. **Scan → DB → API:** ffprobe extracts chapter/metadata once → SQLite stores normalized records → REST API reads from DB on every request. FFprobe is never called at request time.
-2. **Download → Cache Storage → Service Worker:** Whole-book fetch cached explicitly → service worker's CacheFirst serves it offline via range request synthesis.
-3. **Playback → IndexedDB → Sync:** Progress writes are purely local (IndexedDB) during playback → explicit sync pushes dirty records to backend SQLite.
-4. **Auth → JWT → Every Request:** Login returns JWT stored in localStorage → every fetch includes `Authorization: Bearer` → auth middleware on every protected route validates and rejects expired tokens.
+---
 
-## Scaling Considerations
+## Confidence Assessment
 
-This is a household app (2–10 users). Scaling is not a relevant concern. For completeness:
-
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| 2–10 users (target) | Single Node process, single SQLite file, Docker container — no changes needed |
-| 50–100 users | SQLite write contention appears; consider WAL mode (already default in better-sqlite3). Audio streaming may saturate upstream bandwidth before server CPU. |
-| 1000+ users | SQLite → PostgreSQL; separate static/media server (nginx); horizontal scaling for API. Out of scope for this project. |
-
-### Scaling Priorities
-
-1. **First bottleneck:** Audio streaming bandwidth. The server pipes raw file bytes. At 10 concurrent streams of ~64kbps AAC, this is ~640kbps — trivial for LAN, may matter on residential uplink for remote access.
-2. **Second bottleneck:** Library scan time on startup with hundreds of books. ffprobe each file is ~100–500ms. For 200 books, startup scan takes up to 100 seconds. Mitigate by checking mtime before probing.
-
-## Anti-Patterns
-
-### Anti-Pattern 1: Calling ffprobe at Request Time
-
-**What people do:** Run ffprobe inside the `/api/books/:id` or `/api/books/:id/chapters` handler to read metadata fresh on every request.
-
-**Why it's wrong:** ffprobe spawns a subprocess and reads the file header — ~100–500ms per call. Under concurrent requests or during library browse this becomes a bottleneck instantly. .m4b metadata does not change after ingest.
-
-**Do this instead:** Run ffprobe once at scan time, persist to SQLite, serve from DB. Re-scan only when file mtime changes.
-
-### Anti-Pattern 2: Streaming Full File on Every Request (No Range Support)
-
-**What people do:** Respond to audio requests with the full file and status 200, ignoring the `Range` header.
-
-**Why it's wrong:** The browser's `<audio>` element always sends range requests. Without 206 responses, scrubbing/seeking fails on many browsers (especially Safari/iOS). The service worker's `RangeRequestsPlugin` cannot synthesize partial responses from a full-file cache entry unless the original cached response was a 200.
-
-**Do this instead:** Always parse the `Range` header and respond 206 when present. For offline, cache the full 200 response and let `RangeRequestsPlugin` handle synthesizing 206 from it.
-
-### Anti-Pattern 3: Storing Audio Files in IndexedDB
-
-**What people do:** Stream audio bytes into IndexedDB as a Blob for offline storage.
-
-**Why it's wrong:** IndexedDB Blob storage works but Cache Storage is the correct Web Platform API for caching network responses. Workbox's `CacheFirst` strategy with `RangeRequestsPlugin` only works with Cache Storage. IndexedDB audio storage requires a custom service worker fetch handler that reconstructs a Response from the blob — more code, more bugs, no Workbox support.
-
-**Do this instead:** Store audio in Cache Storage (via cache.put()). Store structured data (progress, metadata, download status) in IndexedDB.
-
-### Anti-Pattern 4: Inline x-data Logic for Shared State
-
-**What people do:** Put the entire player/library/auth state in inline `x-data="{ books: [], currentBook: null, ... }"` on a root element.
-
-**Why it's wrong:** With no build step, all JS is global. Inline x-data bloats HTML, can't be tested, can't be split across files, and creates deep nesting when state is shared across components.
-
-**Do this instead:** Use `Alpine.store()` for any state shared across more than one component. Use `Alpine.data()` with named component functions for component-local behavior. Register both before `Alpine.start()`.
-
-### Anti-Pattern 5: Progress Autosync on Every Timeupdate Event
-
-**What people do:** Call `PUT /api/progress` inside the `timeupdate` event handler of `<audio>`.
-
-**Why it's wrong:** `timeupdate` fires ~4 times per second. This creates 240 HTTP requests per minute per user — hammering the server, burning battery on mobile, and failing entirely offline.
-
-**Do this instead:** Write to IndexedDB on timeupdate (throttled to once every 5s). Sync to backend explicitly (on app backgrounding, on manual trigger, or on `visibilitychange`).
-
-## Integration Points
-
-### External Services
-
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| ffprobe (local) | Child process spawn at scan time | ffprobe binary must be present in Docker image (install ffmpeg package); path configurable via env var |
-| Docker volumes | Read-only media mount, read-write config/metadata mounts | Never write to the media volume — only read .m4b files from it |
-
-### Internal Boundaries
-
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| Scanner ↔ DB | Direct function calls (same process) | Scanner calls db.upsertBook() synchronously; better-sqlite3 is synchronous |
-| HTTP routes ↔ DB | Direct function calls (same process) | All routes import query functions from db/queries/; no ORM, named SQL functions |
-| Service Worker ↔ Alpine | `postMessage` / Workbox messaging for cache status | SW notifies app when a book download completes; app queries SW for cache membership |
-| Alpine Stores ↔ IndexedDB | Async calls wrapped in store methods | progress.js store owns all IndexedDB reads/writes; nothing else touches IDB directly |
-| Client ↔ Server | REST over HTTP, JWT Bearer token | No WebSockets needed — this app has no real-time collaboration features |
-
-## Build Order Implications
-
-The component dependencies create a natural build sequence:
-
-1. **DB schema + queries** — everything else depends on data access
-2. **Auth routes + middleware** — required before any other route can be protected
-3. **Library scanner + probe** — must produce book/chapter records before the API can serve them
-4. **Audio stream handler** — stateless once DB is available, can be built alongside scanner
-5. **Library API routes** — reads from DB, requires scanner to have run
-6. **Progress API routes** — simple CRUD; requires auth and DB
-7. **Backend Docker integration** — wire everything into a container that runs correctly
-8. **Alpine app shell + auth UI** — login flow, token storage
-9. **Library browse UI** — calls Library API
-10. **Audio player component** — calls stream handler, integrates Media Session API
-11. **Progress sync** — IndexedDB writes + sync-to-backend call
-12. **Download manager + service worker** — most complex frontend piece; requires player working first
-13. **PWA manifest + installability** — final polish
+| Area | Confidence | Notes |
+|------|------------|-------|
+| Existing architecture | HIGH | Direct codebase analysis, no inference |
+| Admin UI integration | HIGH | Backend endpoints exist; adding list + view |
+| Rescan endpoint | HIGH | scanLibrary is already injectable; trivial to expose |
+| Progress sync | HIGH | Standard REST CRUD + local-first conflict resolution pattern |
+| Progress tiles | HIGH | IndexedDB reads already happen; adding a store map |
+| MP3 folder support | MEDIUM | ffprobe works on MP3 but track-boundary seeking in HTML audio is less well-trodden; player src-swap needs browser testing |
+| Schema migrations | HIGH | bun:sqlite ADD COLUMN with DEFAULT is safe and idempotent with try/catch |
 
 ## Sources
 
-- Audiobookshelf architecture analysis: [DeepWiki — Real-time Communication System / API Architecture](https://deepwiki.com/advplyr/audiobookshelf/3.2-api-architecture)
-- Workbox offline audio: [Serving cached audio and video — Chrome for Developers](https://developer.chrome.com/docs/workbox/serving-cached-audio-and-video)
-- PWA offline streaming architecture: [PWA with offline streaming — web.dev](https://web.dev/articles/pwa-with-offline-streaming)
-- Audio cache PWA reference implementation: [daffinm/audio-cache-test — GitHub](https://github.com/daffinm/audio-cache-test)
-- PWA offline storage strategies: [Offline data — web.dev](https://web.dev/learn/pwa/offline-data)
-- Alpine.js component organization: [Maintainable Alpine.js components — Ryan Chandler](https://ryangjchandler.co.uk/posts/organising-your-alpine-components)
-- Node.js HTTP range requests: [Implementing HTTP range requests in Node.js — cri.dev](https://cri.dev/posts/2025-06-18-how-to-http-range-requests-video-nodejs/)
-
----
-*Architecture research for: Self-hosted audiobook PWA (Spine)*
-*Researched: 2026-03-22*
+- Direct source analysis: `/home/coke/gits/spine/src/` and `/home/coke/gits/spine/public/`
+- No external sources required — all integration points derived from existing code

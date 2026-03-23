@@ -1,232 +1,182 @@
 # Project Research Summary
 
-**Project:** Spine
-**Domain:** Self-hosted audiobook PWA (.m4b only, household multi-user)
-**Researched:** 2026-03-22
-**Confidence:** HIGH
+**Project:** Spine — self-hosted audiobook platform
+**Domain:** v1.1 milestone — Admin Tools, Progress Sync, MP3 Folder Support, Progress Tiles
+**Researched:** 2026-03-23
+**Confidence:** HIGH (stack and architecture), MEDIUM (MP3 scanning edge cases)
 
 ## Executive Summary
 
-Spine is a self-hosted audiobook player PWA targeting a household of 2-10 users who want to leave Audible without losing its core experience. The established pattern for this type of project is a thin Node/Bun HTTP server serving metadata from SQLite and audio bytes via HTTP range requests, paired with a no-build-step frontend using Alpine.js stores for state and Workbox for service worker offline support. The primary reference implementation (Audiobookshelf) confirms this architecture works at scale, but Spine deliberately narrows scope to .m4b files only and avoids the external metadata API dependencies that create maintenance burden for self-hosted operators.
+Spine v1.1 adds four capability clusters to an already-shipped v1.0 product: an admin browser UI for user management and library rescanning, server-side progress sync to enable cross-device resume, progress percentage indicators on library grid tiles, and MP3 folder scanning to expand beyond .m4b-only libraries. The research finding that anchors the entire milestone is that **no new npm dependencies are required** — all four features can be built using the existing Hono + bun:sqlite + Alpine.js + ffprobe stack. The most significant architectural work is MP3 folder support, which requires a new scanner path, a `tracks` table, a `source_type` column on `books`, and player-side track-boundary seeking.
 
-The recommended approach is to build in strict dependency order: database schema and auth first, then the library scanner (the highest-risk foundational step because ffprobe quality gates every UX feature), then the streaming backend, then the frontend player, and finally offline download. This order reflects the architecture's natural dependency chain and front-loads the components with the most failure surface. The no-build-step constraint (Alpine.js via CDN, Workbox via CDN) is workable but requires disciplined use of Alpine Stores to avoid state sprawl in inline `x-data` attributes.
+The recommended build order flows from dependency and risk: Admin UI first (backend already exists, UI is the only gap), progress sync and tiles together (one schema migration unlocks both), and MP3 folder support last (largest scope, touches the most files, independent of the other three features). Progress sync requires one critical design decision before implementation begins: conflict resolution must use "furthest position wins" via SQLite `MAX()` in the upsert, not last-write-wins by client clock, because device clock drift will corrupt listening positions.
 
-The two highest risks are (1) audio seeking being silently broken by missing HTTP 206 range responses on the backend or missing `RangeRequestsPlugin` in the service worker, and (2) iOS background audio being fundamentally unavailable in PWA context. The first risk is preventable by building range-request support correctly from day one and verifying it before writing any player UI. The second is a platform policy limitation, not a bug — Android Chrome is the correct primary mobile target, and iOS should be documented as best-effort from the start.
-
----
+The primary risks are all preventable with explicit guards: the last-admin deletion lockout must be checked server-side before any DELETE executes; concurrent scans must be blocked with a module-level flag; and MP3 file ordering must use natural sort (localeCompare with `{numeric: true}`) rather than default lexicographic sort, or multi-track books will play out of order from the first listen.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The stack is a clean, minimal set with no unnecessary dependencies. Hono replaces Express as the HTTP framework because it runs natively on both Bun and Node.js 22 LTS, has built-in TypeScript types, and includes JWT/cookie middleware. The preferred runtime is Bun 1.2.x (faster startup, built-in `Bun.password` for Argon2id hashing), with Node.js 22 LTS as a drop-in fallback using the same Hono code. `better-sqlite3` handles all structured data (books, chapters, users, progress) with a synchronous API that avoids async complexity in a single-container deployment. The frontend uses no build step: Alpine.js 3.15.x and Workbox 7.4.0 both load from CDN. `fluent-ffmpeg` was archived in May 2025 and must not be used; direct `child_process.spawn` calling `ffprobe` is ~20 lines and the correct approach.
+No new dependencies are needed for v1.1. Hono's built-in `streamSSE()` covers rescan progress feedback without WebSockets. bun:sqlite's `INSERT ... ON CONFLICT DO UPDATE` handles progress upserts and already exists in the codebase. ffprobe (already in the Docker image) reads MP3 ID3 tags with the same JSON output structure as .m4b files. `music-metadata` npm is explicitly excluded — Bun compatibility issues (issue #16402) remain open and ffprobe makes it redundant.
 
-**Core technologies:**
-- **Hono 4.12.x**: HTTP framework — runtime-agnostic, runs on Bun and Node.js, replaces Express
-- **Bun 1.2.x / Node.js 22 LTS**: Runtime — Bun preferred for speed and built-in password hashing; Node.js is the fallback
-- **better-sqlite3 12.8.x**: Database — synchronous API, 448K ops/sec, zero external deps, perfect for single-container
-- **Alpine.js 3.15.x (CDN)**: Frontend reactivity — no build step, x-data/x-store sufficient for library grid + player
-- **Workbox 7.4.0 (CDN)**: Service worker / offline — CacheFirst + RangeRequestsPlugin for audio, NetworkFirst for API
-- **ffprobe 7.x (system binary)**: Metadata extraction — the only reliable tool for .m4b chapter markers and cover art
-- **jose 5.x**: JWT signing — pure JS, works on Node and Bun, peer dep of Hono JWT middleware
-- **zod 3.x**: Request validation — TypeScript inference from schemas, used via `@hono/zod-validator`
+**Core technologies (unchanged from v1.0):**
+- **Hono 4.12.x**: HTTP framework; `streamSSE()` built into `hono/streaming` handles SSE for rescan progress
+- **bun:sqlite**: Synchronous SQLite; `ON CONFLICT DO UPDATE` already used in production; one new `progress` table and one `tracks` table needed
+- **Alpine.js 3.15.x CDN**: No build step; `$store.library.progressMap` keyed by bookId handles progress tiles reactively
+- **ffprobe (system binary)**: Handles both .m4b chapters and MP3 ID3 tags identically via the same `format.tags` JSON structure; no library wrapper needed
+- **Workbox 7.4.0 CDN**: Service worker precache revision strings must be bumped manually on any asset change
 
 ### Expected Features
 
-The Audible baseline sets the floor — missing any table-stakes feature makes Spine feel like a downgrade, not a replacement. The most critical is resume-from-position (users consider losing position unforgivable) followed by chapter navigation (expected because .m4b files embed chapters) and offline download (a primary motivation for leaving Audible). Multi-user household support with per-user progress isolation is a core requirement, not a nice-to-have. See `.planning/research/FEATURES.md` for the full prioritization matrix.
+**Must have (table stakes for v1.1):**
+- Admin UI: list / create / delete / reset-password for users — APIs exist, browser UI does not
+- GET /api/users endpoint — missing from users.ts; required before admin UI can display a user roster
+- Admin-triggered library rescan with progress feedback — users should not need SSH access to refresh their library
+- Progress sync to backend — "pick up where you left off on any device" is the stated core value; without server sync it only works per-device
+- Progress % indicator on library grid tiles — every audiobook app (Audible, Libby, Audiobookshelf) shows this; absence is jarring
 
-**Must have (table stakes — P1):**
-- Library browse with cover art — how users identify books; cover extracted from .m4b at scan time
-- Audio player with play/pause, +30s/-30s skip, chapter navigation, speed control (0.5x–3.0x)
-- Resume from last position — local-first via IndexedDB; losing position is unforgivable
-- Lock-screen / notification playback controls — Media Session API; required on Android
-- Offline whole-book download — Cache Storage + service worker; primary motivation for the project
-- Auth with per-user sessions — household multi-user is a core requirement
-- PWA installability — Web App Manifest + service worker registration
+**Should have (differentiators):**
+- MP3 folder support — expands the library to ripped CD collections and downloaded MP3 audiobooks; common format in existing household libraries
+- "Furthest position wins" conflict resolution — protects against multi-device listening progress loss
+- Scan status polling endpoint — prevents double-trigger when admin is unsure if rescan started
 
-**Should have (differentiators — P2):**
-- Progress sync to backend — push local IndexedDB position to server; additive, not required for offline use
-- Per-book speed memory — remember 1.0x for fiction, 1.8x for non-fiction
-- Sleep timer — fixed presets + end-of-chapter variant
-- Chapter scrubber with boundary markers
-- Keyboard / media-key bindings on desktop
-
-**Defer (v2+):**
-- Progress conflict resolution UI — for the edge case of same user, two offline devices
-- Search and filter enhancements (genre, series, narrator) — requires richer metadata extraction
-- Admin library rescan trigger
-
-**Anti-features (do not build):**
-- Real-time progress sync via WebSocket — marginal gain for household scale, high complexity
-- Transcoding / multi-format support — .m4b only is a scope constraint, not a limitation
-- Native mobile apps — PWA with Media Session API closes the gap; parallel native codebase not justified
-- Automatic metadata scraping from external APIs — .m4b embedded metadata is sufficient; external APIs add maintenance burden
+**Defer to v2+:**
+- Real-time progress push (WebSockets/SSE for sync) — household scale (2-3 users) doesn't justify the engineering cost; periodic push on play events is sufficient
+- Automatic library rescans (cron/filesystem watcher) — `watcher.ts` exists but admin-triggered covers the v1.1 use case
+- Guest accounts (read-only, no password change) — not in v1.1 scope; adds a third role case to all auth middleware
+- Per-chapter download granularity — whole-book download already works; out of scope per PROJECT.md
 
 ### Architecture Approach
 
-The system is three layers: a PWA client layer (Alpine.js stores + Workbox service worker + IndexedDB/Cache Storage), a Node/Bun server layer (Hono routes, library scanner, stream handler, progress API), and a data layer (SQLite DB, read-only .m4b filesystem mount, extracted cover cache on disk). The key architectural principle is normalize-once ingest: ffprobe runs at scan time and writes to SQLite; API endpoints never spawn ffprobe. Audio streaming uses byte-range responses (HTTP 206) throughout. Progress is local-first in IndexedDB during playback and pushed to the backend only on explicit sync. The service worker uses CacheFirst with RangeRequestsPlugin for cached audio and NetworkFirst for API responses.
+v1.1 adds two new route files (`src/routes/admin.ts`, `src/routes/progress.ts`), one new scanner module (`src/scanner/mp3folder.ts`), and three schema additions (`progress` table, `tracks` table, `source_type` column on `books`). All other changes are surgical modifications to existing files. The local-first philosophy is preserved: IndexedDB remains the source of truth for offline playback; the server progress table is a sync target, not the primary store. The audio route gains a `source_type` branch — m4b books stream the single file as before; mp3folder books serve individual tracks by index via a `tracks` table.
 
 **Major components:**
-1. **Library Scanner** (`server/library/scanner.ts` + `probe.ts`) — fs.watch + ffprobe orchestration; runs at startup and on file changes; never at request time
-2. **Stream Handler** (`server/stream/routes.ts`) — byte-range audio delivery; parses `Range:` header, responds 206; stateless once DB has file path
-3. **Auth Module** (`server/auth/`) — JWT issuance + validation middleware; Argon2id password hashing via `Bun.password` or `@node-rs/argon2`
-4. **Service Worker** (`public/sw.js`) — Workbox CacheFirst + RangeRequestsPlugin for audio; NetworkFirst for API; app shell cache
-5. **Alpine Stores** (`public/js/stores/`) — auth, library, player, progress, downloads; single source of truth for cross-component state
-6. **Download Manager** (`public/js/components/downloader.js`) — explicit fetch of full audio file into Cache Storage; progress tracked in IndexedDB
-7. **SQLite DB** (`server/db/`) — books, chapters, users, progress; better-sqlite3 synchronous API; queries behind named functions, no raw SQL in routes
+1. **src/routes/admin.ts** — `POST /api/admin/rescan` (background start + module-level `scanInProgress` flag), `GET /api/admin/scan-status`, guarded by `adminOnly` middleware
+2. **src/routes/progress.ts** — `PUT /api/progress/:bookId` (upsert with `MAX(excluded.position_sec, position_sec)`), `GET /api/progress/:bookId`, `GET /api/progress/all`
+3. **src/scanner/mp3folder.ts** — `walkMp3Folders()` returning `{ type: 'mp3folder'; folderPath: string; files: string[] }[]`, `scanMp3Folder()` calling ffprobe per-file, deriving chapters from track order
+4. **src/routes/audio.ts (modified)** — branches on `source_type`; mp3folder path serves `tracks[trackIdx].file_path` with HTTP range support
+5. **public/index.html (modified)** — admin view (role-gated nav link), `$store.library.progressMap` keyed by bookId, progress sync in `_saveProgress()` (fire-and-forget fetch), pull-on-book-open conflict resolution
 
 ### Critical Pitfalls
 
-1. **Service worker range requests require RangeRequestsPlugin** — Default CacheFirst returns 200 instead of 206; browser seeking breaks silently. Always attach `RangeRequestsPlugin` + `CacheableResponsePlugin({ statuses: [200] })` to any audio route. Also add `crossorigin` to `<audio>` even for same-origin URLs.
+1. **Last-admin deletion lockout** — `DELETE /api/users/:id` must query `SELECT COUNT(*) FROM users WHERE role = 'admin'` before executing; if count is 1 and target is an admin, return 400. Same guard applies to role-demotion. Permanent lockout otherwise, recoverable only via `docker exec` + sqlite3.
 
-2. **Backend must implement HTTP 206 range responses** — Without `Accept-Ranges: bytes` and proper 206 handling, browser audio seeking is non-functional (full file must buffer before scrubbing). Never use `res.sendFile()` for audio; implement range parsing manually. Verify with `curl -r 0-1023` before building any player UI.
+2. **Progress sync clock drift** — "last write wins by client timestamp" fails when device A has clock drift or syncs after device B; user loses position. Use `MAX(excluded.position_sec, position_sec)` in the SQLite upsert. Server sets `updated_at = datetime('now')`. Never trust client-supplied timestamps for conflict resolution.
 
-3. **Offline audio requires explicit download, not runtime caching** — The browser streams audio as range requests (partial chunks); a service worker runtime cache accumulates partial slices, not the full file. Offline playback requires a user-triggered "Download" action that fetches the complete file as a single 200 response into Cache Storage.
+3. **MP3 track ordering breaks on alphabetic sort** — `['track1.mp3', 'track10.mp3', 'track2.mp3']` plays as 1, 10, 2 with default JavaScript sort. Use `localeCompare(b, undefined, { numeric: true })`. Primary sort key: ID3 disc/track tags; fallback: natural filename sort.
 
-4. **iOS PWA audio stops on lock screen — it is a platform policy, not a bug** — Apple does not grant PWAs background audio privileges. Target Android Chrome as the primary mobile platform. Document iOS as best-effort before the player phase begins so no engineering time is wasted on iOS-specific workarounds.
+4. **Concurrent scan race** — `POST /api/admin/rescan` while a startup or previous manual scan is mid-run causes concurrent `scanLibrary()` calls racing on DB writes. Add module-level `scanInProgress: boolean` flag; return 409 if true. Reset in `try/finally`.
 
-5. **Media Session API requires manual position state updates** — `setPositionState()` is not wired to `<audio>` automatically. Lock-screen controls appear but are frozen without it. Wire `setPositionState()` to the `timeupdate` event and call it again immediately after every seek action handler.
-
-6. **.m4b chapter metadata is inconsistent across ripping tools** — `ffprobe` may return zero chapters, empty titles, or `start_time` in timebase units rather than seconds. Normalize defensively at scan time: convert to float seconds, filter zero-duration chapters, fall back to `"Chapter N"` titles, treat zero-chapter books as a single implicit chapter.
-
----
+5. **MP3 book identity ambiguity** — multi-disc layouts (`Disc 1/`, `Disc 2/`) cause one book to appear as multiple. Define the canonical rule before schema work: the folder directly containing MP3 files is the book. Disc subfolders are not supported in v1.1 — document this. `file_path = folderPath` (directory, not a member file).
 
 ## Implications for Roadmap
 
-Based on the architecture's dependency chain and the pitfall phase mappings, the natural build order is:
+Based on the combined research, four phases are recommended for v1.1, ordered by dependency and risk.
 
-### Phase 1: Project Foundation and Database
+### Phase 1: Admin UI and Library Rescan
 
-**Rationale:** Everything else — auth, scanner, streaming, frontend — depends on the database schema and Docker container being in place. Starting here avoids rework.
-**Delivers:** SQLite schema (users, books, chapters, progress), named query functions, Docker container with Node/Bun + ffprobe installed, environment config.
-**Addresses:** The "DB schema + queries first" build order from ARCHITECTURE.md.
-**Avoids:** Path traversal risk — file-serving routes need the library index before they can be written safely.
+**Rationale:** All backend user management endpoints already exist. The only missing piece is `GET /api/users` and the Alpine view. Rescan depends on having an admin view to host the button. This phase has the lowest risk (pure UI addition over existing APIs) and the highest unblocking value — admin can manage accounts in the browser instead of via raw HTTP.
 
-### Phase 2: Auth and User Sessions
+**Delivers:** Browser-accessible user management (create/delete/reset-password), admin-triggered library rescan with status feedback, and an admin-only nav section that gates all admin operations.
 
-**Rationale:** Auth is a prerequisite for every protected route. Building it second means every subsequent phase can be developed against real session logic rather than stubbed out.
-**Delivers:** POST /auth/login + /auth/logout, JWT issuance, Hono auth middleware, Argon2id password hashing, per-user session model.
-**Uses:** `jose`, `Bun.password` / `@node-rs/argon2`, Hono cookie/JWT middleware.
-**Avoids:** Cover art and metadata endpoints accidentally left unprotected (all routes require session validation from the start).
+**Addresses:** Admin UI (table stakes), rescan trigger (table stakes), `GET /api/users` missing endpoint.
 
-### Phase 3: Library Scanner and Metadata Extraction
+**Avoids:** Last-admin deletion lockout (P1 — must implement count guard), concurrent scan race (P5 — must implement `scanInProgress` flag before rescan endpoint ships), frontend role guard bypass (P14 — `adminOnly` middleware on all new routes), rescan double-trigger (P11 — status polling endpoint).
 
-**Rationale:** ffprobe extraction is the highest-risk foundational step — chapter navigation, cover art, and accurate duration all depend on it. Must be built and verified against a diverse set of real .m4b files before any frontend work begins.
-**Delivers:** fs.watch + ffprobe orchestration, normalized book/chapter records in SQLite, cover art extracted to disk, GET /api/books + GET /api/books/:id endpoints.
-**Implements:** Normalize-once ingest pattern; mtime-based dirty detection.
-**Avoids:** .m4b chapter metadata inconsistency pitfall — defensive normalization (float second conversion, zero-duration filtering, fallback titles) must be in this phase.
-**Research flag:** Needs validation against a real .m4b sample set (at least 5 files from different ripping tools) before declaring done.
+**Research flag:** Standard patterns (CRUD UI over existing REST, SSE for progress). No deeper research needed.
 
-### Phase 4: Audio Streaming Backend
+### Phase 2: Progress Sync and Progress Tiles
 
-**Rationale:** Range-request streaming is the most fundamental technical requirement and must be verified correct before any player UI is built. A broken streaming backend wastes all subsequent frontend work.
-**Delivers:** GET /audio/:id with HTTP 206 range responses, Accept-Ranges header, Content-Range header, fs.createReadStream with byte offsets, request abort cleanup on client disconnect.
-**Implements:** Byte-range streaming pattern from ARCHITECTURE.md.
-**Avoids:** The two most critical pitfalls — missing range request support (Pitfall 1 & 2). Verification: `curl -r 0-1023 /audio/:id` must return 206 before this phase is closed.
-**Research flag:** Standard, well-documented HTTP pattern — no additional research needed.
+**Rationale:** Progress tiles depend on having a per-user progress store to read from. Server-side sync and tile display share the same data model, so building them together avoids two separate schema migrations and two separate Alpine store refactors. Tiles can ship reading from IndexedDB first (Option A), then upgrade to `GET /api/progress/all` when sync is live within the same phase.
 
-### Phase 5: Frontend App Shell and Auth UI
+**Delivers:** Per-user progress stored server-side with last-furthest-wins conflict resolution; progress percentage overlay on every book tile in the library grid; cross-device resume that works as soon as two devices come online.
 
-**Rationale:** Backend is now testable; frontend scaffolding can be laid with a working API to call. Auth UI is the entry gate to all other frontend work.
-**Delivers:** HTML app shell, Alpine.js CDN + store registration, service worker skeleton (registration only), login/logout UI, JWT stored in localStorage, token included in all fetch calls.
-**Implements:** Alpine Stores pattern (auth store first), public/js/stores/auth.js, public/sw.js stub.
-**Avoids:** Inline x-data anti-pattern — stores are set up from the beginning so component state never sprawls into HTML.
+**Addresses:** Progress sync (table stakes), progress tiles (table stakes), cross-device resume (core value proposition).
 
-### Phase 6: Library Browse UI
+**Schema changes:** Add `progress` table with `(user_id, book_id)` unique constraint. No other schema changes needed.
 
-**Rationale:** With the library API and app shell in place, the browse grid is a straightforward Alpine component consuming existing data.
-**Delivers:** Book grid with cover art, title, author, duration; search/filter (client-side); Alpine library store; NetworkFirst service worker route for /api/books.
-**Addresses:** Library browse table-stakes feature.
+**Avoids:** Clock-drift conflict resolution (P2 — `MAX(excluded.position_sec, position_sec)` in upsert), stale tile data on tab resume (P7 — refresh `progressMap` on `visibilitychange`), Alpine re-render at scale (P8 — keyed `$store.progress` map, debounce writes), blocking playback on sync fetch (fire-and-forget fetch in `_saveProgress()`).
 
-### Phase 7: Audio Player and Progress Tracking
+**Research flag:** Standard patterns. LWW/furthest-wins conflict resolution is well-documented. No deeper research needed.
 
-**Rationale:** Core playback feature; depends on working streaming backend (Phase 4) and app shell (Phase 5). Media Session API and progress persistence are built together because they share the `timeupdate` event handler.
-**Delivers:** HTML `<audio>` element with crossorigin, play/pause/skip/speed controls, chapter list UI, chapter navigation, Media Session API (setActionHandler + setPositionState), progress write to IndexedDB every 5s (throttled), resume from last position.
-**Implements:** Local-first progress pattern; Media Session position state pattern.
-**Avoids:** Media Session desynced lock-screen controls (Pitfall 5); progress lost on tab close (UX pitfall).
-**Research flag:** Media Session API physical device testing required — desktop DevTools does not replicate Android lock-screen behavior.
+### Phase 3: MP3 Folder Support
 
-### Phase 8: Offline Download and Full PWA
+**Rationale:** This is the largest scope item in v1.1 and is fully independent of Phases 1 and 2. It touches the scanner, audio route, database schema, and player. Building it last means the simpler phases are shipped and stable before the most complex change lands. The scanner architecture change (single-file books → discriminated union of `m4b` and `mp3folder`) is irreversible once committed.
 
-**Rationale:** The most complex frontend piece; requires a working player (Phase 7) and the service worker skeleton (Phase 5). Offline is a primary project requirement but has clear prerequisites.
-**Delivers:** Explicit "Download for offline" UI with byte-progress indicator, full-file fetch into Cache Storage, Workbox CacheFirst + RangeRequestsPlugin wired for /audio/ routes, navigator.storage.persist() call, offline/online status indicator, PWA Web App Manifest, installability.
-**Implements:** Workbox CacheFirst + RangeRequestsPlugin pattern; explicit download vs. runtime caching pattern.
-**Avoids:** Runtime caching fallacy (Pitfall 3); storage eviction without persistence grant; no download progress indicator (UX pitfall).
-**Research flag:** Offline seeking on a physical device after airplane mode is the acceptance test — must verify before closing the phase.
+**Delivers:** MP3 folder collections are scanned, cataloged, and playable. Each folder becomes one book; each MP3 file becomes one chapter. Audio is served per-track with HTTP range support. Cover art is resolved from `folder.jpg`/`cover.jpg` or the first track's `APIC` tag.
 
-### Phase 9: Progress Sync and Polish
+**Addresses:** MP3 folder support (differentiator).
 
-**Rationale:** Progress sync is additive — local-first works correctly without it. Added last because it has no new architecture dependencies and benefits from a stable player implementation.
-**Delivers:** GET/PUT /api/progress/:bookId, Alpine progress store sync() method, per-book speed memory, keyboard/media-key bindings, sleep timer (fixed presets + end-of-chapter).
-**Addresses:** P2 features from FEATURES.md.
+**Schema changes:** Add `tracks` table; add `source_type` column to `books` (ALTER TABLE with try/catch for idempotency).
+
+**Avoids:** Book identity ambiguity (P3 — folder path = book identity; document supported layout; no disc subfolder support in v1.1), lexicographic track ordering (P4 — natural sort via localeCompare + ID3 disc/track tags), schema incompatibility (P10 — `file_path` = folder path; `source_type` column gates audio route branching), cover art loss on re-extraction failure (P12 — preserve previous `cover_path` if ffprobe fails).
+
+**Research flag:** Needs attention during planning. MP3 folder naming patterns are inconsistent across real-world collections (MEDIUM confidence). Player src-swap behavior for track-boundary seeking has less documentation than standard HTML audio. Recommend testing with a representative sample of real MP3 collections before finalizing the scanner logic.
+
+### Phase 4: Service Worker and Cache Hygiene
+
+**Rationale:** Every phase that adds or modifies frontend assets must update Workbox precache revision strings in `public/sw.js`. This is a maintenance phase that consolidates all revision bumps, ensures the admin view and new Alpine stores are precached correctly, and verifies the `/api/progress/*` routes are covered by NetworkFirst.
+
+**Delivers:** Service worker updated to cache admin.html and any new JS/CSS; precache revisions current; no stale-cache incidents after deployment.
+
+**Avoids:** Service worker stale cache (P13 — revision strings bumped for all modified assets).
+
+**Research flag:** Standard pattern. No deeper research needed.
 
 ### Phase Ordering Rationale
 
-- **DB before scanner before API before frontend**: The dependency chain from ARCHITECTURE.md's build order is strict — no layer can be meaningfully built without its foundation.
-- **Auth in phase 2, not later**: All API routes need session validation. Building auth early means it is never retrofitted onto routes that shipped unprotected.
-- **Streaming verified before player UI**: Pitfall 1 and 2 have HIGH recovery costs if discovered after the player is built. The curl verification test closes the phase before any frontend work begins.
-- **Offline download last among core features**: Explicitly decoupled from streaming per Pitfall 3 — they are different code paths. The download manager only makes sense after the player proves the streaming backend works.
-- **iOS documented before player phase**: Platform limitations set as known constraints before engineering time is allocated, not after time is spent.
+- Phase 1 before Phase 2: Admin UI is lower complexity and unblocks the rescan flow. Progress sync schema is independent but conceptually follows admin stability.
+- Phase 2 together (not split): Sync and tiles share the same `progress` table; implementing them together avoids two separate Alpine store migrations.
+- Phase 3 last: Largest scope, most files touched, most novel patterns (track-boundary seeking, discriminated union scanner). Independent of Phases 1 and 2 at the backend.
+- Phase 4 as cleanup: SW revision bumps are required after every frontend change; consolidating them avoids partial cache invalidation across phases.
 
 ### Research Flags
 
-Phases likely needing deeper research or careful validation during planning:
-- **Phase 3 (Library Scanner):** Real-world .m4b sample diversity is hard to anticipate from docs alone. The normalization logic needs to be designed against a concrete set of ffprobe output samples. Consider collecting sample ffprobe JSON output from 5+ files before writing normalization code.
-- **Phase 7 (Audio Player / Media Session):** Media Session API behavior on physical Android devices with screen locked is notoriously hard to test in CI. Plan for manual device testing time in this phase's estimate.
-- **Phase 8 (Offline Download):** Cache Storage quota behavior and navigator.storage.persist() permission UX varies by browser and OS. Plan manual testing on Android Chrome and desktop Chrome, including testing with storage quota artificially reduced.
+Needs deeper research during planning:
+- **Phase 3 (MP3 scanning):** Real-world collection structures are inconsistent (MEDIUM confidence). Edge cases with disc subfolders, mixed ID3/no-ID3 files, and `<audio>` track-boundary seeking across file sources should be prototyped early.
 
-Phases with standard, well-documented patterns (skip additional research):
-- **Phase 1 (Foundation):** SQLite schema and Docker Alpine + ffmpeg are fully documented.
-- **Phase 2 (Auth):** Hono JWT middleware + Argon2id is documented in official sources.
-- **Phase 4 (Streaming):** HTTP 206 range request implementation is a documented Node.js pattern with working code examples in ARCHITECTURE.md.
-- **Phase 6 (Library Browse):** Straightforward Alpine.js store + fetch pattern.
-
----
+Standard patterns (no deeper research needed):
+- **Phase 1 (Admin UI):** Standard CRUD UI over existing REST endpoints. Hono SSE is documented.
+- **Phase 2 (Progress sync):** REST upsert with furthest-wins conflict resolution is a well-documented pattern. Local-first IndexedDB merge is already implemented in v1.0.
+- **Phase 4 (SW cache hygiene):** Workbox precache revision management is a manual but well-understood process.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All critical choices verified against official docs or GitHub releases as of March 2026. fluent-ffmpeg deprecation confirmed. Bun range request bug confirmed fixed in 1.1.9. |
-| Features | HIGH | Cross-verified against Audible baseline, Audiobookshelf feature set, and community self-hosting reports. Feature dependencies mapped explicitly. |
-| Architecture | HIGH | Patterns verified against official Workbox docs, web.dev, and Audiobookshelf architecture analysis. Code examples provided for all critical patterns. |
-| Pitfalls | HIGH (technical) / MEDIUM (iOS) | Range requests, service worker, Media Session pitfalls verified against official docs and production post-mortems. iOS limitations confirmed across multiple practitioner sources but Apple platform policy can change. |
+| Stack | HIGH | No new dependencies; all tools already in use and validated in production. `music-metadata` exclusion confirmed via open Bun issue. |
+| Features | HIGH | Admin UI patterns from Audiobookshelf source; progress sync from industry-standard LWW research; tiles from v1.0 IndexedDB already in place. |
+| Architecture | HIGH | Based on direct codebase analysis of `src/` and `public/`. Integration points identified by reading existing code, not inference. |
+| Pitfalls | HIGH (admin/sync), MEDIUM (MP3) | Admin and progress pitfalls confirmed via code review. MP3 edge cases (disc folders, mixed tags) are community-reported; real-world testing required. |
 
-**Overall confidence:** HIGH
+**Overall confidence:** HIGH for Phases 1, 2, and 4. MEDIUM for Phase 3 (MP3 folder support) due to inconsistent real-world collection structures.
 
 ### Gaps to Address
 
-- **Alpine.js component organization at this project's scale**: Research found minimal domain-specific sources for Alpine-only (no-build-step) SPAs of this complexity. The store-based pattern is recommended but untested at Spine's exact scale. Validate the store structure early in Phase 5 before it propagates across all components.
-- **.m4b sample diversity**: Research identified the category of chapter metadata inconsistency but cannot predict which edge cases the user's specific library will hit. Build normalization defensively and plan a scan-validation step against the actual audiobook collection before the Phase 3 milestone is closed.
-- **Docker volume performance for large libraries**: Audio streaming performance from a Docker volume mount on different NAS/host configurations was not benchmarked. For most home server setups this will be fine; flag as a potential issue if the user reports playback stuttering.
-
----
+- **MP3 disc subfolder handling:** Research explicitly defers disc subfolders to v2+. Document this decision in the scanner and README. Flag for users with multi-disc ripped collections.
+- **Track-boundary seeking in `<audio>`:** Swapping `audio.src` on chapter/track boundary in the player is the recommended approach (Option C), but browser behavior when seeking across file boundaries has less documentation than standard single-file HTML audio. Plan for browser testing early in Phase 3.
+- **MP3 cover art via ffprobe `attached_pic` stream:** Confirmed ffprobe can extract it, but the extraction code path differs slightly from .m4b cover art. Needs implementation testing before finalizing `scanMp3Folder()`.
+- **`GET /api/progress/all` vs N IndexedDB reads:** Phase 2 can ship with either approach. The batch API endpoint is preferred once progress sync is live; document the upgrade path in the phase plan.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- https://hono.dev/docs/getting-started/nodejs — Hono Node.js adapter, verified March 2026
-- https://github.com/WiseLibs/better-sqlite3 — v12.8.0 release, March 2026
-- https://developer.chrome.com/docs/workbox/serving-cached-audio-and-video — official Workbox audio caching documentation
-- https://web.dev/articles/media-session — official Media Session API guide
-- https://developer.mozilla.org/en-US/docs/Web/API/StorageManager/persist — storage persistence API
-- https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria — eviction behavior
-- https://bun.com/docs/guides/util/hash-a-password — Bun.password built-in
-- https://github.com/honojs/hono/releases — Hono version history
+- `https://hono.dev/docs/helpers/streaming` — Hono `streamSSE()` confirmed built-in to 4.x
+- `https://bun.com/docs/runtime/sqlite` — bun:sqlite feature set; `ON CONFLICT DO UPDATE` confirmed
+- `https://github.com/oven-sh/bun/issues/16402` — music-metadata Bun compatibility issue, open March 2026
+- Codebase direct analysis: `src/routes/users.ts`, `src/scanner/index.ts`, `src/scanner/probe.ts`, `src/scanner/walk.ts`, `src/db/schema.ts`, `src/middleware/auth.ts`, `public/index.html`, `public/sw.js`
 
 ### Secondary (MEDIUM confidence)
-- https://github.com/advplyr/audiobookshelf — leading self-hosted reference implementation, feature set analysis
-- https://deepwiki.com/advplyr/audiobookshelf/3.2-api-architecture — Audiobookshelf architecture analysis
-- https://philna.sh/blog/2018/10/23/service-workers-beware-safaris-range-request/ — Safari range request behavior
-- https://blog.prototyp.digital/what-we-learned-about-pwas-and-audio-playback/ — PWA audio practitioner post-mortem
-- https://www.magicbell.com/blog/pwa-ios-limitations-safari-support-complete-guide — iOS PWA limitations 2026 status
-- https://nathangrigg.com/2025/03/self-hosted-audiobooks/ — household self-hosting motivations and use case
-- https://github.com/fluent-ffmpeg/node-fluent-ffmpeg/issues/1324 — deprecation confirmation May 2025
+- `https://www.audiobookshelf.org/guides/book-scanner/` — MP3 folder structure, metadata priority patterns
+- `https://deepwiki.com/audiobookshelf/audiobookshelf-api-docs/3.6-playback-and-progress-tracking` — Progress data model, LWW conflict resolution
+- `https://emby.media/support/articles/Audio-Book-Naming.html` — MP3 folder naming conventions
+- `https://www.sachith.co.uk/offline-sync-conflict-resolution-patterns-architecture-trade%E2%80%91offs-practical-guide-feb-19-2026/` — Offline sync conflict resolution patterns
 
-### Tertiary (LOW confidence)
-- Docker Alpine + ffmpeg pattern, multi-stage builds — general Docker documentation inference
-- Alpine.js component organization at SPA scale — limited domain-specific sources found
+### Tertiary (LOW confidence — validate during implementation)
+- `https://github.com/advplyr/audiobookshelf/issues/3829` — MP3 chapter creation from audio meta tags (community bug report)
+- `https://github.com/advplyr/audiobookshelf/issues/2762` — Metadata precedence on rescan (community bug report)
+- `https://rxdb.info/downsides-of-offline-first.html` — IndexedDB eviction, clock drift risks
 
 ---
-*Research completed: 2026-03-22*
+*Research completed: 2026-03-23*
 *Ready for roadmap: yes*
