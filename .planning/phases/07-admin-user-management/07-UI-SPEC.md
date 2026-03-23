@@ -57,7 +57,7 @@ Declared values (multiples of 4 only):
 | Role | Size | Weight | Line Height | Usage |
 |------|------|--------|-------------|-------|
 | Body | 16px | 400 | 1.5 | Status messages, form inputs, table cell data |
-| Label | 14px | 400 | 1.4 | Table column headers, muted meta text (role, dates), nav links |
+| Label | 14px | 400 | 1.4 | Table column headers, muted meta text (role, dates), nav links, badge text |
 | Heading | 20px | 600 | 1.2 | Admin page section heading ("Users"), nav brand |
 | Display | 28px | 600 | 1.2 | Cover placeholder initials — existing pattern; not used in admin view |
 
@@ -120,10 +120,10 @@ All components are hand-written HTML + CSS following existing patterns. No compo
 | `.admin-form-row` | flex row, gap 8px | Holds username input + password input + role select + create button inline on desktop |
 | `.admin-table` | new | Full-width table: `width: 100%; border-collapse: collapse` |
 | `.admin-table th` | `.chapter-num` style (14px/muted) | Column headers |
-| `.admin-table td` | Body (16px/400) | Data cells, padding 8px 12px, border-bottom `var(--color-border)` |
-| `.admin-badge-you` | downloaded-badge concept | Small pill: "(You)" — bg `var(--color-accent)`, text white, font-size 12px, padding 2px 6px, border-radius 4px |
-| `.admin-badge-role` | `.filter-downloaded` pill shape | Role indicator pill: "admin" / "user" — bg `var(--color-surface)`, border `var(--color-border)`, font-size 12px |
-| `.btn-action` | `.nav-logout` (ghost button) | Table row secondary action buttons (Reset Password, Cancel) — no background, `var(--color-text-muted)`, 14px |
+| `.admin-table td` | Body (16px/400) | Data cells, `padding: 8px 16px`, border-bottom `var(--color-border)` |
+| `.admin-badge-you` | downloaded-badge concept | Small pill: "(You)" — bg `var(--color-accent)`, text white, font-size 14px, `padding: 4px 8px`, border-radius 4px |
+| `.admin-badge-role` | `.filter-downloaded` pill shape | Role indicator pill: "admin" / "user" — bg `var(--color-surface)`, border `var(--color-border)`, font-size 14px, `padding: 4px 8px` |
+| `.btn-action` | `.nav-logout` (ghost button) | Table row secondary action buttons (Reset Password, Keep Password) — no background, `var(--color-text-muted)`, 14px |
 | `.btn-delete` | `.btn-action` + destructive color | Delete action button — `var(--color-text-muted)` default, `var(--color-error)` in confirm state |
 | `.btn-delete-confirm` | modifier on `.btn-delete` | Confirm state: border `var(--color-error)`, text `var(--color-error)`, bg none |
 | `.btn-delete-disabled` | `.btn-play-disabled` | Last-admin / self-row: greyed out, cursor not-allowed |
@@ -166,10 +166,10 @@ All components are hand-written HTML + CSS following existing patterns. No compo
 ### Reset Password Action (D-14, D-15)
 
 - Default state: "Reset Password" button (`.btn-action`) in Actions column.
-- Click: Actions column content replaces with inline password input + "Save Password" button + "Cancel" button. The Reset Password button disappears.
+- Click: Actions column content replaces with inline password input + "Save Password" button + "Keep Password" button. The Reset Password button disappears.
 - Input: `type="password"`, placeholder "New password", `.admin-reset-input` (44px height, full width of Actions cell).
 - Save Password click: "Save Password" becomes "Saving..." (disabled). On success: form collapses back to "Reset Password" button, `statusMsg` sets to "Password reset for {username}".
-- Cancel click: collapses back to "Reset Password" button with no status message.
+- Keep Password click: collapses back to "Reset Password" button with no status message.
 - On error: inline error text in cell "Reset failed. Try again."
 
 ### Status Message
@@ -220,11 +220,12 @@ All components are hand-written HTML + CSS following existing patterns. No compo
 | Role option: default | "User" |
 | Role option: elevated | "Admin" |
 | Create success | "User {username} created." |
+| Delete user button label | "Delete" |
 | Delete confirm button | "Confirm?" |
 | Delete success | "User {username} deleted." |
 | Reset password button label | "Reset Password" |
 | Reset password save label | "Save Password" |
-| Reset password cancel label | "Cancel" |
+| Reset password cancel label | "Keep Password" |
 | Reset success | "Password reset for {username}." |
 | Last-admin delete tooltip | "Cannot delete the last admin" |
 | Empty state heading | "No users yet." |
