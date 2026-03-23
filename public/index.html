@@ -392,6 +392,62 @@
     <template x-if="$store.app.view === 'admin'">
     <div class="admin-container"
          x-data="{
+           activeTab: 'users',
+           scanning: false,
+           scanTotal: 0,
+           scanScanned: 0,
+           scanCurrent: '',
+           scanError: '',
+           scanSummary: null,
+           _scanEs: null,
+           async startScan() {
+             this.scanError = ''
+             this.scanSummary = null
+             const res = await fetch('/api/scan', { method: 'POST' })
+             if (res.status === 409) {
+               this.scanError = 'A scan is already in progress.'
+               return
+             }
+             if (!res.ok) {
+               this.scanError = 'Failed to start scan.'
+               return
+             }
+             this.scanning = true
+             this.scanScanned = 0
+             this.scanTotal = 0
+             this.scanCurrent = ''
+
+             const es = new EventSource('/api/scan/progress')
+             this._scanEs = es
+
+             es.addEventListener('start', (e) => {
+               const d = JSON.parse(e.data)
+               this.scanTotal = d.total
+               this.scanScanned = 0
+             })
+             es.addEventListener('file', (e) => {
+               const d = JSON.parse(e.data)
+               this.scanScanned = d.scanned
+               this.scanTotal = d.total
+               this.scanCurrent = d.current
+             })
+             es.addEventListener('done', (e) => {
+               const d = JSON.parse(e.data)
+               this.scanning = false
+               this.scanSummary = d
+               this._scanEs = null
+               es.close()
+               $store.library.loadBooks()
+             })
+             es.onerror = () => {
+               if (this.scanning) {
+                 this.scanning = false
+                 this.scanError = 'Connection lost during scan.'
+               }
+               this._scanEs = null
+               es.close()
+             }
+           },
            users: [],
            loading: false,
            statusMsg: '',
@@ -513,6 +569,17 @@
          }"
          x-init="loadUsers()">
 
+      <!-- Tab bar (per D-01) -->
+      <div class="admin-tabs">
+        <button class="admin-tab-btn" :class="{ 'admin-tab-active': activeTab === 'users' }"
+                @click="activeTab = 'users'" type="button">Users</button>
+        <button class="admin-tab-btn" :class="{ 'admin-tab-active': activeTab === 'library' }"
+                @click="activeTab = 'library'" type="button">Library</button>
+      </div>
+
+      <!-- Users tab panel — x-show keeps DOM alive (not x-if, per Pitfall 6 / Phase 7 lesson) -->
+      <div x-show="activeTab === 'users'">
+
       <h1 class="admin-heading">Users</h1>
 
       <!-- Status message -->
@@ -633,6 +700,46 @@
           </template>
         </tbody>
       </table>
+
+      </div><!-- end Users tab panel -->
+
+      <!-- Library tab panel (per D-02) -->
+      <div x-show="activeTab === 'library'">
+        <h1 class="admin-heading">Library</h1>
+
+        <!-- Error message -->
+        <div class="admin-status" x-show="scanError" x-text="scanError" role="alert"></div>
+
+        <!-- Rescan button (per D-03, D-06) -->
+        <button class="btn-primary admin-scan-btn"
+                @click="startScan()"
+                :disabled="scanning"
+                x-text="scanning ? 'Scan in progress' : 'Rescan Library'"
+                type="button"></button>
+
+        <!-- Progress bar (per D-04) -->
+        <div class="admin-scan-progress" x-show="scanning" x-transition>
+          <div class="admin-scan-progress-bar">
+            <div class="admin-scan-progress-fill"
+                 :style="'width:' + (scanTotal > 0 ? Math.round((scanScanned / scanTotal) * 100) : 0) + '%'"></div>
+          </div>
+          <div class="admin-scan-progress-text">
+            Scanning... <span x-text="scanScanned"></span> / <span x-text="scanTotal"></span> files
+          </div>
+          <div class="admin-scan-current" x-show="scanCurrent"
+               x-text="scanCurrent.split('/').pop()"></div>
+        </div>
+
+        <!-- Scan summary (per D-12, D-14) -->
+        <div class="admin-scan-summary" x-show="scanSummary && !scanning">
+          <span>Scan complete:</span>
+          <span x-text="(scanSummary?.newBooks ?? 0) + ' new'"></span>,
+          <span x-text="(scanSummary?.updatedBooks ?? 0) + ' updated'"></span>,
+          <span x-text="(scanSummary?.missing ?? 0) + ' missing'"></span>,
+          <span x-text="(scanSummary?.notEnriched ?? 0) + ' not enriched'"></span>
+        </div>
+      </div><!-- end Library tab panel -->
+
     </div>
     </template>
 
