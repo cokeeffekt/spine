@@ -41,7 +41,21 @@ auth.post('/login', async (c) => {
     maxAge: 30 * 24 * 60 * 60,
   })
 
-  return c.json({ role: user.role })
+  return c.json({ role: user.role, username })
+})
+
+auth.get('/me', async (c) => {
+  const token = getCookie(c, 'session')
+  if (!token) return c.json({ error: 'Unauthorized' }, 401)
+
+  const db = getDatabase()
+  const session = db.query<{ username: string; role: string }, [string]>(
+    `SELECT u.username, u.role FROM sessions s JOIN users u ON s.user_id = u.id
+     WHERE s.token = ? AND s.expires_at > datetime('now')`
+  ).get(token)
+
+  if (!session) return c.json({ error: 'Unauthorized' }, 401)
+  return c.json({ username: session.username, role: session.role })
 })
 
 auth.post('/logout', async (c) => {

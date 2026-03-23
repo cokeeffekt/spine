@@ -14,6 +14,13 @@
     const res = await fetch('/api/books')
     if (res.ok) {
       $store.library.books = await res.json()
+      // Restore username from session so progressDB keys match
+      const meRes = await fetch('/auth/me')
+      if (meRes.ok) {
+        const me = await meRes.json()
+        $store.auth.username = me.username
+        $store.auth.role = me.role
+      }
       $store.auth.loggedIn = true
       $store.app.view = 'library'
       // D-14: Proactively cache all cover art for offline availability
