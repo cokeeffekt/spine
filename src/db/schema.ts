@@ -57,6 +57,18 @@ export function initializeDatabase(db: Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_sessions_user_id    ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+
+    CREATE TABLE IF NOT EXISTS progress (
+      user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      book_id     INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+      timestamp   REAL    NOT NULL,
+      chapter_idx INTEGER NOT NULL,
+      percentage  REAL    NOT NULL,
+      updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, book_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_progress_user_id ON progress(user_id);
   `);
 
   // Migration: add last_login_at column to existing databases
