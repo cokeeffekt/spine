@@ -19,9 +19,9 @@
 - [x] **LIBM-02**: Rescan shows live progress (files scanned / total) via SSE
 - [x] **LIBM-03**: Concurrent rescans are prevented (scan-in-progress guard)
 - [ ] **LIBM-04**: Scanner supports MP3 folders — a folder of .mp3 files is treated as one audiobook
-- [ ] **LIBM-05**: MP3 files within a folder are naturally sorted (track ordering)
+- [x] **LIBM-05**: MP3 files within a folder are naturally sorted (track ordering)
 - [ ] **LIBM-06**: MP3 metadata derived from ffprobe ID3 tags with folder/file name fallback
-- [ ] **LIBM-07**: Multi-disc subfolders are flattened into a single book
+- [x] **LIBM-07**: Multi-disc subfolders are flattened into a single book
 - [x] **LIBM-08**: Scanner enriches book metadata (description, cover, narrator, series) from Audnexus API when local data is incomplete
 - [x] **LIBM-09**: Enrichment is non-blocking — scan completes even if Audnexus is unreachable
 
@@ -66,9 +66,9 @@
 | LIBM-02 | Phase 8 | Complete |
 | LIBM-03 | Phase 8 | Complete |
 | LIBM-04 | Phase 10 | Pending |
-| LIBM-05 | Phase 10 | Pending |
+| LIBM-05 | Phase 10 | Complete |
 | LIBM-06 | Phase 10 | Pending |
-| LIBM-07 | Phase 10 | Pending |
+| LIBM-07 | Phase 10 | Complete |
 | PROG-05 | Phase 9 | Complete |
 | PROG-06 | Phase 9 | Complete |
 | PROG-07 | Phase 9 | Complete |

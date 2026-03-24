@@ -82,7 +82,7 @@ Plans:
   4. A multi-disc folder layout (Disc 1/, Disc 2/ subfolders) is flattened into a single book in correct disc order
 **Plans**: 2 plans
 Plans:
-- [ ] 10-01-PLAN.md — Foundation: mp3-sort utilities (TDD), schema migration, type extensions
+- [x] 10-01-PLAN.md — Foundation: mp3-sort utilities (TDD), schema migration, type extensions
 - [ ] 10-02-PLAN.md — Scanner: walkLibrary refactor, scanFolder, fallback metadata, integration tests
 
 ### Phase 11: MP3 Player Support
@@ -110,5 +110,5 @@ Plans:
 | 7. Admin User Management | v1.1 | 2/2 | Complete   | 2026-03-23 |
 | 8. Library Rescan UI | v1.1 | 2/2 | Complete   | 2026-03-24 |
 | 9. Progress Sync and Tiles | v1.1 | 2/2 | Complete   | 2026-03-24 |
-| 10. MP3 Folder Scanner | v1.1 | 0/2 | Not started | - |
+| 10. MP3 Folder Scanner | v1.1 | 1/2 | In Progress|  |
 | 11. MP3 Player Support | v1.1 | 0/? | Not started | - |

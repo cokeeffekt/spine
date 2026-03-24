@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Admin Tools & Library Improvements
-status: Ready to plan
-stopped_at: Phase 10 context gathered
-last_updated: "2026-03-24T09:42:45.950Z"
+status: Ready to execute
+stopped_at: Completed 10-01-PLAN.md
+last_updated: "2026-03-24T10:03:17.253Z"
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 8
+  completed_plans: 7
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** A household can browse their audiobook library, listen with full player controls, and pick up exactly where they left off — on any device, even offline.
-**Current focus:** Phase 09 — progress-sync-and-tiles
+**Current focus:** Phase 10 — mp3-folder-scanner
 
 ## Current Position
 
-Phase: 10
-Plan: Not started
+Phase: 10 (mp3-folder-scanner) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -46,6 +46,7 @@ Plan: Not started
 | Phase 08-library-rescan-ui P01 | 7 | 2 tasks | 10 files |
 | Phase 09-progress-sync-and-tiles P01 | 110 | 2 tasks | 4 files |
 | Phase 09-progress-sync-and-tiles P02 | 480 | 3 tasks | 2 files |
+| Phase 10-mp3-folder-scanner P01 | 2 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,8 @@ Key decisions affecting v1.1:
 - [Phase 09-02]: Fire-and-forget server push in _saveProgress() per D-03; failures silently ignored via .catch()
 - [Phase 09-02]: Optimistic progressMap update before server response for live tile badge updates without refetch
 - [Phase 09-02]: progressRes.ok guard in loadBooks() prevents setting progressMap to error object on 401
+- [Phase 10-01]: sortTracks uses generic T extends track shape to preserve caller type; localeCompare numeric:true for natural filename sort
+- [Phase 10-01]: chapters.file_path migration placed after asin migration — NULL default means no INSERT changes needed for m4b scanFile
 
 ### Pending Todos
 
@@ -88,6 +91,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T09:42:45.947Z
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-mp3-folder-scanner/10-CONTEXT.md
+Last session: 2026-03-24T10:03:17.251Z
+Stopped at: Completed 10-01-PLAN.md
+Resume file: None
