@@ -429,6 +429,17 @@ export async function scanFolder(
   // h. Merge metadata
   let merged = mergeTrackMetadata(sortedTracks.map((t) => t.metadata));
 
+  // h2. MP3 convention: album tag = book title, title tag = track/chapter name.
+  //     If album is consistent across tracks, promote it to the book title.
+  if (merged.series_title !== null) {
+    const albumValues = sortedTracks.map((t) => t.metadata.series_title).filter(Boolean);
+    const allSame = albumValues.length > 0 && albumValues.every((v) => v === albumValues[0]);
+    if (allSame) {
+      merged.title = merged.series_title;
+      merged.series_title = null;
+    }
+  }
+
   // i. Apply fallback (folder mode — title=folder name, author=grandparent)
   merged = applyFallbackMetadata(merged, folderPath, true);
 

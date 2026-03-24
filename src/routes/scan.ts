@@ -11,6 +11,7 @@ const scan = new Hono<{ Variables: AuthVariables }>()
 scan.use('/*', adminOnly)
 
 // POST /api/scan — trigger manual rescan (per D-03, D-07, LIBM-01)
+// ?force=true resets all file_mtime values so every book gets re-probed
 scan.post('/scan', async (c) => {
   console.log(`[scan-route] POST /api/scan hit — isScanRunning=${isScanRunning()}`)
   if (isScanRunning()) {
@@ -18,6 +19,11 @@ scan.post('/scan', async (c) => {
     return c.json({ error: 'Scan already in progress' }, 409)
   }
   const db = getDatabase()
+  const force = c.req.query('force') === 'true'
+  if (force) {
+    const result = db.prepare("UPDATE books SET file_mtime = 0").run()
+    console.log(`[scan-route] Force rescan — reset file_mtime for ${result.changes} books`)
+  }
   const libraryRoot = process.env['LIBRARY_ROOT'] ?? '/books'
   console.log(`[scan-route] Starting runScan, libraryRoot=${libraryRoot}`)
   console.log(`[scan-route] scanEmitter listener counts BEFORE runScan: progress=${scanEmitter.listenerCount('progress')}, done=${scanEmitter.listenerCount('done')}`)

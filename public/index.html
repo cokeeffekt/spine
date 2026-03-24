@@ -127,7 +127,11 @@
           <a class="nav-admin-link"
              :class="{ 'nav-active': $store.app.view === 'admin' }"
              @click.prevent="$store.app.setView('admin')"
-             href="#">Users</a>
+             href="#"
+             title="Admin"
+             aria-label="Admin">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          </a>
         </template>
         <span class="nav-username" x-text="$store.auth.username"></span>
         <button class="nav-logout" @click="(async () => {
@@ -407,7 +411,7 @@
            scanError: '',
            scanSummary: null,
            _scanEs: null,
-           async startScan() {
+           async startScan(force = false) {
              this.scanError = ''
              this.scanSummary = null
              this.scanning = true
@@ -449,7 +453,7 @@
 
              // Wait for SSE connection to open, then trigger the scan
              await new Promise(resolve => { es.onopen = resolve })
-             const res = await fetch('/api/scan', { method: 'POST' })
+             const res = await fetch('/api/scan' + (force ? '?force=true' : ''), { method: 'POST' })
              if (res.status === 409) {
                this.scanning = false
                this.scanError = 'A scan is already in progress.'
@@ -727,12 +731,20 @@
         <!-- Error message -->
         <div class="admin-status" x-show="scanError" x-text="scanError" role="alert"></div>
 
-        <!-- Rescan button (per D-03, D-06) -->
-        <button class="btn-primary admin-scan-btn"
-                @click="startScan()"
-                :disabled="scanning"
-                x-text="scanning ? 'Scan in progress' : 'Rescan Library'"
-                type="button"></button>
+        <!-- Rescan buttons (per D-03, D-06) -->
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <button class="btn-primary admin-scan-btn"
+                  @click="startScan()"
+                  :disabled="scanning"
+                  x-text="scanning ? 'Scan in progress' : 'Rescan Library'"
+                  type="button"></button>
+          <button class="btn-primary admin-scan-btn"
+                  style="background: var(--surface-2, #374151);"
+                  @click="startScan(true)"
+                  :disabled="scanning"
+                  title="Re-probe all books, ignoring cache — fixes metadata issues"
+                  type="button">Force Rescan</button>
+        </div>
 
         <!-- Progress bar (per D-04) -->
         <div class="admin-scan-progress" x-show="scanning" x-transition>
