@@ -93,7 +93,10 @@ Plans:
   1. An MP3 book plays continuously from the last track of one file through the first second of the next without requiring user interaction
   2. Seeking to a position in the middle of a different track loads and plays from the correct point in that track
   3. Chapter markers in the player reflect MP3 track boundaries
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 11-01-PLAN.md — Backend: per-track MP3 audio route, format field in book detail API
+- [ ] 11-02-PLAN.md — Frontend: player store MP3 branching, offline download, service worker routing
 
 ## Progress
 
@@ -111,4 +114,4 @@ Plans:
 | 8. Library Rescan UI | v1.1 | 2/2 | Complete   | 2026-03-24 |
 | 9. Progress Sync and Tiles | v1.1 | 2/2 | Complete   | 2026-03-24 |
 | 10. MP3 Folder Scanner | v1.1 | 2/2 | Complete    | 2026-03-24 |
-| 11. MP3 Player Support | v1.1 | 0/? | Not started | - |
+| 11. MP3 Player Support | v1.1 | 0/2 | Not started | - |
