@@ -23,6 +23,7 @@ All core functionality delivered:
 - Dockerized single-container deployment
 - Admin user management with create/delete/password-reset
 - Admin-triggered library rescan with live SSE progress bar and Audnexus metadata enrichment
+- Cross-device progress sync — server-backed PUT/GET API, furthest-position-wins resume, offline queue flush, tile progress bars
 
 **Outstanding:**
 - Phase 05 lock-screen UAT (5 items, requires Android device testing)
@@ -44,7 +45,7 @@ All core functionality delivered:
 | .m4b only | All user's books are .m4b, simplifies metadata/chapter extraction | Validated — Phase 01 |
 | bun:sqlite over better-sqlite3 | better-sqlite3 uses V8 C++ API incompatible with Bun runtime | Phase 01 deviation |
 | Alpine.js over React/Vue | Lightweight, no build step, inspectable | Validated — Phase 03 |
-| Local-first progress | Works offline, user controls their data | Validated — Phase 04 |
+| Local-first progress + server sync | Works offline, syncs to server when online, furthest-position-wins | Validated — Phases 04, 09 |
 | Whole-book downloads | Simpler than chapter-level granularity | Validated — Phase 06 |
 | Full auth over simple profiles | Household needs real account separation | Validated — Phase 02 |
 | Raw IndexedDB (no idb library) | Single-store schemas are simple enough | Validated — Phases 04, 06 |
