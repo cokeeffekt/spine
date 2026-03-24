@@ -84,4 +84,11 @@ export function initializeDatabase(db: Database): void {
   } catch {
     // Column already exists — safe to ignore
   }
+
+  // Migration: add file_path column to chapters for MP3 track references (Phase 10)
+  try {
+    db.exec(`ALTER TABLE chapters ADD COLUMN file_path TEXT`)
+  } catch {
+    // Column already exists — safe to ignore
+  }
 }

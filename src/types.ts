@@ -51,6 +51,7 @@ export interface Chapter {
   start_sec: number;
   end_sec: number;
   duration_sec: number;
+  file_path: string | null;  // MP3 track file path; NULL for m4b chapters
 }
 
 export interface NormalizedChapter {
@@ -59,6 +60,7 @@ export interface NormalizedChapter {
   start_sec: number;
   end_sec: number;
   duration_sec: number;
+  file_path?: string;  // MP3 track file path; undefined/absent for m4b chapters
 }
 
 export interface User {
