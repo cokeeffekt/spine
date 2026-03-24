@@ -31,7 +31,7 @@ All core functionality delivered:
 
 ## Constraints
 
-- **Format**: .m4b only — simplifies parsing and streaming, no transcoding needed
+- **Format**: .m4b and MP3 folders — scanner handles both formats natively
 - **Backend**: Bun (Node.js compatible) — JavaScript/TypeScript ecosystem
 - **Frontend**: Alpine.js + Workbox PWA — no heavy framework, no build step required
 - **Storage**: Filesystem-based library — no database required for media files
@@ -42,7 +42,7 @@ All core functionality delivered:
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| .m4b only | All user's books are .m4b, simplifies metadata/chapter extraction | Validated — Phase 01 |
+| .m4b only | All user's books are .m4b, simplifies metadata/chapter extraction | Validated — Phase 01; extended to MP3 folders — Phase 10 |
 | bun:sqlite over better-sqlite3 | better-sqlite3 uses V8 C++ API incompatible with Bun runtime | Phase 01 deviation |
 | Alpine.js over React/Vue | Lightweight, no build step, inspectable | Validated — Phase 03 |
 | Local-first progress + server sync | Works offline, syncs to server when online, furthest-position-wins | Validated — Phases 04, 09 |
@@ -53,7 +53,7 @@ All core functionality delivered:
 
 ## Out of Scope
 
-- Multi-format support (mp3 folders, etc.) — all books are .m4b
+- ~~Multi-format support~~ — MP3 folder scanning shipped in Phase 10 (v1.1)
 - Real-time progress sync — local-first by design; manual sync planned for v2
 - Per-chapter downloads — whole book download only
 - Social features — personal household use
@@ -97,4 +97,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-24 — Phase 8 (library rescan UI) complete*
+*Last updated: 2026-03-24 — Phase 10 (MP3 folder scanner) complete*
