@@ -110,5 +110,5 @@ Plans:
 | 7. Admin User Management | v1.1 | 2/2 | Complete   | 2026-03-23 |
 | 8. Library Rescan UI | v1.1 | 2/2 | Complete   | 2026-03-24 |
 | 9. Progress Sync and Tiles | v1.1 | 2/2 | Complete   | 2026-03-24 |
-| 10. MP3 Folder Scanner | v1.1 | 2/2 | Complete   | 2026-03-24 |
+| 10. MP3 Folder Scanner | v1.1 | 2/2 | Complete    | 2026-03-24 |
 | 11. MP3 Player Support | v1.1 | 0/? | Not started | - |
