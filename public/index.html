@@ -1433,9 +1433,16 @@
           const keys = await downloadDB.getAllKeys()
           const cache = await caches.open('spine-audio')
           for (const bookId of keys) {
-            const entry = await cache.match('/api/books/' + bookId + '/audio')
+            const meta = await downloadDB.get(bookId)
+            // Check format-appropriate cache URL (Pitfall 5)
+            let cacheUrl
+            if (meta && meta.format === 'mp3') {
+              cacheUrl = '/api/books/' + bookId + '/audio/0'  // Check first track
+            } else {
+              cacheUrl = '/api/books/' + bookId + '/audio'
+            }
+            const entry = await cache.match(cacheUrl)
             if (entry) {
-              const meta = await downloadDB.get(bookId)
               this.states[bookId] = { status: 'complete', progress: 1, sizeBytes: meta ? meta.sizeBytes : 0 }
             } else {
               // Stale IndexedDB entry — cache was evicted
@@ -1483,44 +1490,80 @@
           this._controllers[book.id] = controller
 
           try {
-            const res = await fetch('/api/books/' + book.id + '/audio', { signal: controller.signal })
-            if (!res.ok) throw new Error('HTTP ' + res.status)
+            if (book.format === 'mp3') {
+              // MP3: download each track individually (D-10, D-11)
+              const totalTracks = book.chapters.length
+              let downloaded = 0
+              let totalBytes = 0
+              const cache = await caches.open('spine-audio')
 
-            const totalBytes = parseInt(res.headers.get('Content-Length') || '0', 10)
-            const reader = res.body.getReader()
-            // Keep chunks in closure, NOT on reactive store (Pitfall 6 from research)
-            const chunks = []
-            let loaded = 0
-
-            while (true) {
-              const { done, value } = await reader.read()
-              if (done) break
-              chunks.push(value)
-              loaded += value.byteLength
-              this.states[book.id] = {
-                status: 'downloading',
-                progress: totalBytes > 0 ? loaded / totalBytes : 0,
-                sizeBytes: loaded
+              for (let i = 0; i < totalTracks; i++) {
+                const url = trackUrl(book.id, i)
+                const res = await fetch(url, { signal: controller.signal })
+                if (!res.ok) throw new Error('HTTP ' + res.status + ' for track ' + i)
+                const blob = await res.blob()
+                const fullResponse = new Response(blob, {
+                  status: 200,
+                  headers: {
+                    'Content-Type': 'audio/mpeg',
+                    'Content-Length': String(blob.size),
+                    'Accept-Ranges': 'bytes',
+                  }
+                })
+                await cache.put(url, fullResponse)
+                downloaded++
+                totalBytes += blob.size
+                // D-11: progress = tracks downloaded / total tracks
+                this.states[book.id] = {
+                  status: 'downloading',
+                  progress: downloaded / totalTracks,
+                  sizeBytes: totalBytes
+                }
               }
+
+              // Save with format and trackCount for cleanup and init reconciliation (Pitfall 4, 5)
+              await downloadDB.save(book.id, { sizeBytes: totalBytes, downloadedAt: Date.now(), format: 'mp3', trackCount: totalTracks })
+              this.states[book.id] = { status: 'complete', progress: 1, sizeBytes: totalBytes }
+            } else {
+              // m4b: existing single-URL download (unchanged)
+              const res = await fetch('/api/books/' + book.id + '/audio', { signal: controller.signal })
+              if (!res.ok) throw new Error('HTTP ' + res.status)
+
+              const totalBytesHeader = parseInt(res.headers.get('Content-Length') || '0', 10)
+              const reader = res.body.getReader()
+              // Keep chunks in closure, NOT on reactive store (Pitfall 6 from research)
+              const chunks = []
+              let loaded = 0
+
+              while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+                chunks.push(value)
+                loaded += value.byteLength
+                this.states[book.id] = {
+                  status: 'downloading',
+                  progress: totalBytesHeader > 0 ? loaded / totalBytesHeader : 0,
+                  sizeBytes: loaded
+                }
+              }
+
+              // Reassemble and store in Cache Storage
+              const blob = new Blob(chunks, { type: 'audio/mp4' })
+              const fullResponse = new Response(blob, {
+                status: 200,
+                headers: {
+                  'Content-Type': 'audio/mp4',
+                  'Content-Length': String(loaded),
+                  'Accept-Ranges': 'bytes',
+                }
+              })
+              const cache = await caches.open('spine-audio')
+              await cache.put('/api/books/' + book.id + '/audio', fullResponse)
+
+              await downloadDB.save(book.id, { sizeBytes: loaded, downloadedAt: Date.now() })
+              this.states[book.id] = { status: 'complete', progress: 1, sizeBytes: loaded }
             }
 
-            // Reassemble and store in Cache Storage
-            const blob = new Blob(chunks, { type: 'audio/mp4' })
-            const fullResponse = new Response(blob, {
-              status: 200,
-              headers: {
-                'Content-Type': 'audio/mp4',
-                'Content-Length': String(loaded),
-                'Accept-Ranges': 'bytes',
-              }
-            })
-            const cache = await caches.open('spine-audio')
-            await cache.put('/api/books/' + book.id + '/audio', fullResponse)
-
-            await downloadDB.save(book.id, { sizeBytes: loaded, downloadedAt: Date.now() })
-            this.states[book.id] = { status: 'complete', progress: 1, sizeBytes: loaded }
-
-            // Request persistent storage on first successful download
             if (navigator.storage && navigator.storage.persist) {
               navigator.storage.persist().catch(() => {})
             }
@@ -1554,7 +1597,15 @@
 
         async _cleanup(bookId) {
           const cache = await caches.open('spine-audio')
+          // Always delete the m4b-style URL
           await cache.delete('/api/books/' + bookId + '/audio')
+          // If MP3, also delete all per-track cache entries (Pitfall 4)
+          const meta = await downloadDB.get(bookId)
+          if (meta && meta.format === 'mp3' && meta.trackCount) {
+            for (let i = 0; i < meta.trackCount; i++) {
+              await cache.delete('/api/books/' + bookId + '/audio/' + i)
+            }
+          }
           await downloadDB.delete(bookId)
         }
       })

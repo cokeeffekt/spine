@@ -22,6 +22,12 @@ const audioCacheFirst = new workbox.strategies.CacheFirst({
   ],
 })
 
+// Per-track MP3 audio: CacheFirst — same strategy as whole-book m4b audio (D-12)
+workbox.routing.registerRoute(
+  ({ url }) => url.pathname.match(/^\/api\/books\/\d+\/audio\/\d+$/),
+  audioCacheFirst
+)
+
 // Audio: CacheFirst for downloaded books — RangeRequestsPlugin slices cached 200 into 206
 workbox.routing.registerRoute(
   ({ url }) => url.pathname.match(/^\/api\/books\/\d+\/audio$/),
