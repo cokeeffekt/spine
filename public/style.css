@@ -983,6 +983,18 @@ body {
   justify-content: center;
 }
 
+/* Reading progress bar — YouTube-style thin bar at bottom of cover (D-09, D-10) */
+.reading-progress-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background-color: var(--color-accent);
+  z-index: 3;
+  pointer-events: none;
+  transition: width 300ms ease;
+}
+
 /* Offline indicator (D-13) */
 .offline-indicator {
   color: var(--color-text-muted);
