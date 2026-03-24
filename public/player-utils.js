@@ -212,6 +212,16 @@ var downloadDB = (() => {
 })()
 
 /**
+ * Build the URL for an MP3 book's track audio.
+ * @param {number|string} bookId
+ * @param {number} chapterIdx - zero-based track index
+ * @returns {string} URL path
+ */
+function trackUrl(bookId, chapterIdx) {
+  return '/api/books/' + bookId + '/audio/' + chapterIdx
+}
+
+/**
  * Reconcile a list of downloaded bookIds against what is actually in Cache Storage.
  * Pure function — takes injected callbacks so it is testable without browser APIs.
  * @param {string[]} bookIds - IDs currently tracked in IndexedDB
@@ -233,5 +243,5 @@ async function reconcileDownloads(bookIds, cacheLookupFn, deleteFn) {
 
 // Export for both browser global and module systems
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { clampSkip, getCurrentChapterIdx, progressKey, formatTime, sleepTimerMs, buildMediaMetadata, chapterPositionState, seektoAbsolute, formatBytes, downloadDB, reconcileDownloads }
+  module.exports = { clampSkip, getCurrentChapterIdx, progressKey, formatTime, sleepTimerMs, buildMediaMetadata, chapterPositionState, seektoAbsolute, formatBytes, downloadDB, reconcileDownloads, trackUrl }
 }

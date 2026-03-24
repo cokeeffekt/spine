@@ -5,12 +5,12 @@ self.addEventListener('install', () => self.skipWaiting())
 workbox.core.clientsClaim()
 
 workbox.precaching.precacheAndRoute([
-  { url: '/index.html', revision: '6' },
+  { url: '/index.html', revision: '7' },
   { url: '/style.css', revision: '6' },
   { url: '/manifest.json', revision: '1' },
   { url: '/icons/icon-192.png', revision: '1' },
   { url: '/icons/icon-512.png', revision: '1' },
-  { url: '/player-utils.js', revision: '3' }
+  { url: '/player-utils.js', revision: '4' }
 ])
 
 // IMPORTANT: Instantiate at top level so workbox-sw auto-loads modules (Pitfall 2)

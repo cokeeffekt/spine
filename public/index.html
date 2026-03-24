@@ -1071,6 +1071,7 @@
         positionInterval: null,
         _prevChapterIdx: -1,
         _offlineDirty: new Set(),
+        _trackCumulativeTime: 0,
 
         get currentChapter() {
           if (!this.book || !this.book.chapters) return null
@@ -1083,7 +1084,14 @@
           el.addEventListener('timeupdate', () => {
             this.currentTime = el.currentTime
             if (this.book && this.book.chapters) {
-              this.currentChapterIdx = getCurrentChapterIdx(el.currentTime, this.book.chapters)
+              if (this.book.format === 'mp3') {
+                // Pitfall 1: Do NOT call getCurrentChapterIdx for MP3 — el.currentTime is within-track, not cumulative.
+                // currentChapterIdx is maintained by play/jumpToChapter/ended handlers.
+                const ch = this.book.chapters[this.currentChapterIdx]
+                this._trackCumulativeTime = ch ? ch.start_sec + el.currentTime : el.currentTime
+              } else {
+                this.currentChapterIdx = getCurrentChapterIdx(el.currentTime, this.book.chapters)
+              }
             }
             if (this.currentChapterIdx !== this._prevChapterIdx) {
               this._prevChapterIdx = this.currentChapterIdx
@@ -1091,7 +1099,10 @@
             }
             // End-of-chapter sleep timer (per D-08)
             if (this.sleepMode === 'chapter' && this.currentChapter) {
-              if (this.currentTime >= this.currentChapter.end_sec - 0.5) {
+              const chEnd = this.book && this.book.format === 'mp3'
+                ? this.currentChapter.duration_sec
+                : this.currentChapter.end_sec
+              if (this.currentTime >= chEnd - 0.5) {
                 this._sleepStop()
               }
             }
@@ -1105,10 +1116,36 @@
           })
 
           el.addEventListener('ended', () => {
-            this.playing = false
-            this._clearSaveInterval()
-            this._clearPositionInterval()
-            this._saveProgress()
+            if (this.book && this.book.format === 'mp3') {
+              const nextIdx = this.currentChapterIdx + 1
+              if (nextIdx < this.book.chapters.length) {
+                // Advance to next track (D-01: sequential load on track end)
+                this.currentChapterIdx = nextIdx
+                this._prevChapterIdx = nextIdx
+                el.src = trackUrl(this.book.id, nextIdx)
+                el.load()
+                el.addEventListener('canplay', () => {
+                  el.playbackRate = this.speed
+                  el.play()
+                  this.playing = true
+                  this._startSaveInterval()
+                  this._startPositionInterval()
+                  this._setMediaMetadata()
+                }, { once: true })
+              } else {
+                // Last track finished — book complete
+                this.playing = false
+                this._clearSaveInterval()
+                this._clearPositionInterval()
+                this._saveProgress()
+              }
+            } else {
+              // m4b: book complete (existing behavior)
+              this.playing = false
+              this._clearSaveInterval()
+              this._clearPositionInterval()
+              this._saveProgress()
+            }
           })
 
           el.addEventListener('loadedmetadata', () => {
@@ -1124,34 +1161,46 @@
           }
           this.book = book
           const el = window._spineAudio
-          el.src = '/api/books/' + book.id + '/audio'
 
           const saved = await progressDB.get(Alpine.store('auth').username, book.id)
+          const serverProgress = Alpine.store('library').progressMap[book.id]
 
-          el.addEventListener('canplay', () => {
-            // Furthest-position-wins: compare local IndexedDB vs server progress (D-04, D-07)
-            const serverProgress = Alpine.store('library').progressMap[book.id]
-            let resumeTimestamp = 0
-            let resumeChapterIdx = 0
-            if (saved && serverProgress) {
-              if (saved.timestamp >= serverProgress.timestamp) {
-                resumeTimestamp = saved.timestamp
-                resumeChapterIdx = saved.chapterIdx
-              } else {
-                resumeTimestamp = serverProgress.timestamp
-                resumeChapterIdx = serverProgress.chapterIdx
-              }
-            } else if (saved) {
+          let resumeTimestamp = 0
+          let resumeChapterIdx = 0
+          if (saved && serverProgress) {
+            if (saved.timestamp >= serverProgress.timestamp) {
               resumeTimestamp = saved.timestamp
               resumeChapterIdx = saved.chapterIdx
-            } else if (serverProgress) {
+            } else {
               resumeTimestamp = serverProgress.timestamp
               resumeChapterIdx = serverProgress.chapterIdx
             }
-            if (resumeTimestamp > 0) {
-              el.currentTime = resumeTimestamp
-              this.currentChapterIdx = resumeChapterIdx
+          } else if (saved) {
+            resumeTimestamp = saved.timestamp
+            resumeChapterIdx = saved.chapterIdx
+          } else if (serverProgress) {
+            resumeTimestamp = serverProgress.timestamp
+            resumeChapterIdx = serverProgress.chapterIdx
+          }
+
+          if (book.format === 'mp3') {
+            el.src = trackUrl(book.id, resumeChapterIdx)
+          } else {
+            el.src = '/api/books/' + book.id + '/audio'
+          }
+
+          el.addEventListener('canplay', () => {
+            if (book.format === 'mp3') {
+              // Pitfall 2: within-track offset for MP3 books
+              const ch = book.chapters[resumeChapterIdx]
+              el.currentTime = ch ? resumeTimestamp - ch.start_sec : 0
+              this._trackCumulativeTime = resumeTimestamp
+            } else {
+              if (resumeTimestamp > 0) {
+                el.currentTime = resumeTimestamp
+              }
             }
+            this.currentChapterIdx = resumeChapterIdx
             el.playbackRate = saved ? saved.speed : 1.0
             this.speed = el.playbackRate
             el.play()
@@ -1198,15 +1247,32 @@
           if (!ch) return
           const el = window._spineAudio
           if (!el) return
-          el.currentTime = ch.start_sec
-          this.currentChapterIdx = chapterIdx
-          this._prevChapterIdx = chapterIdx
-          this._setMediaMetadata()
-          this._updatePositionState()
-          if (!this.playing) {
-            el.play()
-            this.playing = true
-            this._startSaveInterval()
+
+          if (this.book.format === 'mp3') {
+            this.currentChapterIdx = chapterIdx
+            this._prevChapterIdx = chapterIdx
+            el.src = trackUrl(this.book.id, chapterIdx)
+            el.load()
+            el.addEventListener('canplay', () => {
+              el.playbackRate = this.speed
+              el.play()
+              this.playing = true
+              this._startSaveInterval()
+              this._startPositionInterval()
+              this._setMediaMetadata()
+              this._updatePositionState()
+            }, { once: true })
+          } else {
+            el.currentTime = ch.start_sec
+            this.currentChapterIdx = chapterIdx
+            this._prevChapterIdx = chapterIdx
+            this._setMediaMetadata()
+            this._updatePositionState()
+            if (!this.playing) {
+              el.play()
+              this.playing = true
+              this._startSaveInterval()
+            }
           }
         },
 
@@ -1217,11 +1283,12 @@
 
         async _saveProgress() {
           if (!this.book) return
+          const currentPos = this.book.format === 'mp3' ? this._trackCumulativeTime : this.currentTime
           await progressDB.save(
             Alpine.store('auth').username,
             this.book.id,
             {
-              timestamp: this.currentTime,
+              timestamp: currentPos,
               chapterIdx: this.currentChapterIdx,
               speed: this.speed,
               updatedAt: Date.now()
@@ -1231,17 +1298,17 @@
           try {
             localStorage.setItem('spine-last-book', JSON.stringify({
               id: this.book.id,
-              position: this.currentTime
+              position: currentPos
             }))
           } catch { /* localStorage may be unavailable (private mode, storage full) */ }
           // Server sync: push on every save tick and pause (D-01). Fire-and-forget (D-03).
           if (navigator.onLine) {
             const pct = this.book.duration_sec > 0
-              ? this.currentTime / this.book.duration_sec
+              ? currentPos / this.book.duration_sec
               : 0
             // Optimistic update for tile badge (Pitfall 2)
             Alpine.store('library').progressMap[this.book.id] = {
-              timestamp: this.currentTime,
+              timestamp: currentPos,
               chapterIdx: this.currentChapterIdx,
               percentage: pct
             }
@@ -1249,7 +1316,7 @@
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                timestamp: this.currentTime,
+                timestamp: currentPos,
                 chapterIdx: this.currentChapterIdx,
                 percentage: pct
               })
@@ -1282,7 +1349,8 @@
 
         _updatePositionState() {
           if (!('mediaSession' in navigator) || !this.book || !this.currentChapter) return
-          const state = chapterPositionState(this.currentChapter, window._spineAudio?.currentTime ?? 0, window._spineAudio?.playbackRate ?? 1.0)
+          const pos = this.book.format === 'mp3' ? this._trackCumulativeTime : (window._spineAudio?.currentTime ?? 0)
+          const state = chapterPositionState(this.currentChapter, pos, window._spineAudio?.playbackRate ?? 1.0)
           if (!state) return
           try {
             navigator.mediaSession.setPositionState(state)
@@ -1559,11 +1627,18 @@
       })
       navigator.mediaSession.setActionHandler('seekto', (details) => {
         const player = Alpine.store('player')
-        if (!player.book || !player.currentChapter) return
-        const absoluteTime = seektoAbsolute(player.currentChapter, details.seekTime)
-        if (absoluteTime !== null) {
-          player.seek(absoluteTime)
+        const el = window._spineAudio
+        if (!player.book || !player.currentChapter || !el) return
+        if (player.book.format === 'mp3') {
+          // seekTime is chapter-relative; set directly on el (within-track offset)
+          el.currentTime = details.seekTime
           player._updatePositionState()
+        } else {
+          const absoluteTime = seektoAbsolute(player.currentChapter, details.seekTime)
+          if (absoluteTime !== null) {
+            player.seek(absoluteTime)
+            player._updatePositionState()
+          }
         }
       })
     }

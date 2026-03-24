@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-const { clampSkip, getCurrentChapterIdx, progressKey, formatTime, sleepTimerMs } = require('../public/player-utils.js')
+const { clampSkip, getCurrentChapterIdx, progressKey, formatTime, sleepTimerMs, trackUrl } = require('../public/player-utils.js')
 
 describe('clampSkip', () => {
   test('clamps to 0 when skipping before start', () => {
@@ -75,5 +75,17 @@ describe('sleepTimerMs', () => {
   })
   test('converts 60 minutes', () => {
     expect(sleepTimerMs(60)).toBe(3600000)
+  })
+})
+
+describe('trackUrl', () => {
+  test('builds URL from numeric bookId and chapterIdx', () => {
+    expect(trackUrl(42, 0)).toBe('/api/books/42/audio/0')
+  })
+  test('builds URL for non-zero chapter index', () => {
+    expect(trackUrl(1, 5)).toBe('/api/books/1/audio/5')
+  })
+  test('handles string bookId via concatenation', () => {
+    expect(trackUrl('7', 3)).toBe('/api/books/7/audio/3')
   })
 })
