@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Admin Tools & Library Improvements
 status: Ready to execute
-stopped_at: Completed 09-01-PLAN.md
-last_updated: "2026-03-24T02:26:44.721Z"
+stopped_at: "Checkpoint 09-02 Task 3: human-verify — awaiting user visual verification"
+last_updated: "2026-03-24T02:31:21.410Z"
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -45,6 +45,7 @@ Plan: 2 of 2
 | Phase 07-admin-user-management P02 | 90 | 3 tasks | 3 files |
 | Phase 08-library-rescan-ui P01 | 7 | 2 tasks | 10 files |
 | Phase 09-progress-sync-and-tiles P01 | 110 | 2 tasks | 4 files |
+| Phase 09-progress-sync-and-tiles P02 | 480 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,9 @@ Key decisions affecting v1.1:
 - [Phase 09-01]: No server-side MAX guard on PUT progress: client handles furthest-position-wins conflict resolution per D-06
 - [Phase 09-01]: Progress table in main db.exec() block (not try/catch migration): CREATE TABLE IF NOT EXISTS is idempotent per Pitfall 5
 - [Phase 09-01]: GET /api/progress returns map keyed by string book_id for frontend key lookups
+- [Phase 09-02]: Fire-and-forget server push in _saveProgress() per D-03; failures silently ignored via .catch()
+- [Phase 09-02]: Optimistic progressMap update before server response for live tile badge updates without refetch
+- [Phase 09-02]: progressRes.ok guard in loadBooks() prevents setting progressMap to error object on 401
 
 ### Pending Todos
 
@@ -84,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T02:26:44.719Z
-Stopped at: Completed 09-01-PLAN.md
+Last session: 2026-03-24T02:31:21.408Z
+Stopped at: Checkpoint 09-02 Task 3: human-verify — awaiting user visual verification
 Resume file: None
