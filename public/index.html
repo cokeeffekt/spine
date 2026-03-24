@@ -269,6 +269,13 @@
               <div class="downloaded-badge" x-show="$store.downloads.isDownloaded(book.id)" aria-label="Downloaded">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 010 .708l-7 7a.5.5 0 01-.708 0l-3.5-3.5a.5.5 0 11.708-.708L6.5 10.293l6.646-6.647a.5.5 0 01.708 0z"/></svg>
               </div>
+
+              <!-- Reading progress bar (D-09, D-10, D-12) -->
+              <div
+                class="reading-progress-bar"
+                x-show="$store.library.progressMap[book.id]"
+                :style="'width:' + Math.round(($store.library.progressMap[book.id]?.percentage ?? 0) * 100) + '%'"
+              ></div>
             </div>
             <div class="card-text">
               <div class="card-title" x-text="book.title"></div>
@@ -933,7 +940,27 @@
       return { open, key, get, save }
     })()
 
-    window.addEventListener('online', () => { if (window.Alpine) Alpine.store('app').isOffline = false })
+    window.addEventListener('online', async () => {
+      if (window.Alpine) Alpine.store('app').isOffline = false
+      // Flush offline-queued progress (D-02)
+      if (!window.Alpine) return
+      const player = Alpine.store('player')
+      const auth = Alpine.store('auth')
+      if (!player || !auth.loggedIn) return
+      for (const bookId of player._offlineDirty) {
+        const saved = await progressDB.get(auth.username, bookId)
+        if (!saved) continue
+        const book = Alpine.store('library').books.find(b => b.id === bookId)
+        const percentage = (book && book.duration_sec > 0)
+          ? saved.timestamp / book.duration_sec : 0
+        fetch('/api/progress/' + bookId, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ timestamp: saved.timestamp, chapterIdx: saved.chapterIdx, percentage })
+        }).catch(() => {})
+      }
+      player._offlineDirty.clear()
+    })
     window.addEventListener('offline', () => { if (window.Alpine) Alpine.store('app').isOffline = true })
 
     // Android back gesture: push history state on view transitions so back swipe doesn't exit the app
@@ -968,18 +995,24 @@
         query: '',
         selectedBook: null,
         loading: false,
+        progressMap: {},
 
         async loadBooks() {
           this.loading = true
           try {
-            const res = await fetch('/api/books')
-            if (res.status === 401) {
+            const [booksRes, progressRes] = await Promise.all([
+              fetch('/api/books'),
+              fetch('/api/progress')
+            ])
+            if (booksRes.status === 401) {
               Alpine.store('auth').loggedIn = false
               Alpine.store('app').setView('login')
               return
             }
-            this.books = await res.json()
-            // D-14: Proactively cache all cover art for offline availability
+            this.books = await booksRes.json()
+            if (progressRes.ok) {
+              this.progressMap = await progressRes.json()
+            }
             Alpine.store('downloads').cacheAllCovers(this.books)
           } catch (e) {
             console.error('Failed to load books:', e)
@@ -1037,6 +1070,7 @@
         saveInterval: null,
         positionInterval: null,
         _prevChapterIdx: -1,
+        _offlineDirty: new Set(),
 
         get currentChapter() {
           if (!this.book || !this.book.chapters) return null
@@ -1095,9 +1129,28 @@
           const saved = await progressDB.get(Alpine.store('auth').username, book.id)
 
           el.addEventListener('canplay', () => {
-            if (saved) {
-              el.currentTime = saved.timestamp
-              this.currentChapterIdx = saved.chapterIdx
+            // Furthest-position-wins: compare local IndexedDB vs server progress (D-04, D-07)
+            const serverProgress = Alpine.store('library').progressMap[book.id]
+            let resumeTimestamp = 0
+            let resumeChapterIdx = 0
+            if (saved && serverProgress) {
+              if (saved.timestamp >= serverProgress.timestamp) {
+                resumeTimestamp = saved.timestamp
+                resumeChapterIdx = saved.chapterIdx
+              } else {
+                resumeTimestamp = serverProgress.timestamp
+                resumeChapterIdx = serverProgress.chapterIdx
+              }
+            } else if (saved) {
+              resumeTimestamp = saved.timestamp
+              resumeChapterIdx = saved.chapterIdx
+            } else if (serverProgress) {
+              resumeTimestamp = serverProgress.timestamp
+              resumeChapterIdx = serverProgress.chapterIdx
+            }
+            if (resumeTimestamp > 0) {
+              el.currentTime = resumeTimestamp
+              this.currentChapterIdx = resumeChapterIdx
             }
             el.playbackRate = saved ? saved.speed : 1.0
             this.speed = el.playbackRate
@@ -1181,6 +1234,29 @@
               position: this.currentTime
             }))
           } catch { /* localStorage may be unavailable (private mode, storage full) */ }
+          // Server sync: push on every save tick and pause (D-01). Fire-and-forget (D-03).
+          if (navigator.onLine) {
+            const pct = this.book.duration_sec > 0
+              ? this.currentTime / this.book.duration_sec
+              : 0
+            // Optimistic update for tile badge (Pitfall 2)
+            Alpine.store('library').progressMap[this.book.id] = {
+              timestamp: this.currentTime,
+              chapterIdx: this.currentChapterIdx,
+              percentage: pct
+            }
+            fetch('/api/progress/' + this.book.id, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                timestamp: this.currentTime,
+                chapterIdx: this.currentChapterIdx,
+                percentage: pct
+              })
+            }).catch(() => { /* silent — D-03 */ })
+          } else {
+            this._offlineDirty.add(this.book.id)
+          }
         },
 
         _startSaveInterval() {
