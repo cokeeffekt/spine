@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Admin Tools & Library Improvements
-status: Ready to execute
-stopped_at: Completed 11-01-PLAN.md
-last_updated: "2026-03-24T11:32:10.732Z"
+status: Phase complete — ready for verification
+stopped_at: "Completed 11-02-PLAN.md (checkpoint:human-verify pending)"
+last_updated: "2026-03-24T11:39:05.889Z"
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 10
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # Project State
@@ -49,6 +49,7 @@ Plan: 2 of 2
 | Phase 10-mp3-folder-scanner P01 | 2 | 2 tasks | 4 files |
 | Phase 10-mp3-folder-scanner P02 | 7 | 3 tasks | 5 files |
 | Phase 11-mp3-player-support P01 | 2 | 2 tasks | 4 files |
+| Phase 11-mp3-player-support P02 | 25 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,10 @@ Key decisions affecting v1.1:
 - [Phase 11-01]: New /books/:id/audio/:chapterIdx route registered before /books/:id/audio so Hono matches the more-specific path first
 - [Phase 11-01]: format field derived from chapters[0].file_path at query time — no new books table column needed
 - [Phase 11-01]: file_path stripped from chapter response objects via destructuring to avoid exposing server paths (D-05)
+- [Phase 11-mp3-player-support]: trackUrl(bookId, chapterIdx) added to player-utils.js as unit-tested named helper for MP3 per-track audio URLs
+- [Phase 11-mp3-player-support]: _trackCumulativeTime maintains chapter.start_sec + el.currentTime for MP3 books; used for progress saves, Media Session position state, and sleep timer
+- [Phase 11-mp3-player-support]: play() restructured: resume position determined before el.src so MP3 can set correct track URL before el.load()
+- [Phase 11-mp3-player-support]: MP3 download saves format+trackCount to downloadDB; _cleanup reads this to delete per-track cache entries; init checks /audio/0 for MP3 vs /audio for m4b
 
 ### Pending Todos
 
@@ -100,6 +105,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T11:32:10.730Z
-Stopped at: Completed 11-01-PLAN.md
+Last session: 2026-03-24T11:39:05.887Z
+Stopped at: Completed 11-02-PLAN.md (checkpoint:human-verify pending)
 Resume file: None

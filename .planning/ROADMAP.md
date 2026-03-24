@@ -22,7 +22,7 @@
 - [x] **Phase 8: Library Rescan UI** - Admin can trigger and monitor a library rescan from the browser (completed 2026-03-24)
 - [x] **Phase 9: Progress Sync and Tiles** - Progress syncs to the server and shows as percentage on grid tiles (completed 2026-03-24)
 - [x] **Phase 10: MP3 Folder Scanner** - MP3 folder collections are scanned and cataloged as audiobooks (completed 2026-03-24)
-- [ ] **Phase 11: MP3 Player Support** - MP3 books play correctly with track-boundary handling
+- [x] **Phase 11: MP3 Player Support** - MP3 books play correctly with track-boundary handling (completed 2026-03-24)
 
 ## Phase Details
 
@@ -96,7 +96,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 11-01-PLAN.md — Backend: per-track MP3 audio route, format field in book detail API
-- [ ] 11-02-PLAN.md — Frontend: player store MP3 branching, offline download, service worker routing
+- [x] 11-02-PLAN.md — Frontend: player store MP3 branching, offline download, service worker routing
 
 ## Progress
 
@@ -114,4 +114,4 @@ Plans:
 | 8. Library Rescan UI | v1.1 | 2/2 | Complete   | 2026-03-24 |
 | 9. Progress Sync and Tiles | v1.1 | 2/2 | Complete   | 2026-03-24 |
 | 10. MP3 Folder Scanner | v1.1 | 2/2 | Complete    | 2026-03-24 |
-| 11. MP3 Player Support | v1.1 | 1/2 | In Progress|  |
+| 11. MP3 Player Support | v1.1 | 2/2 | Complete   | 2026-03-24 |
