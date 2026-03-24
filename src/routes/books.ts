@@ -40,13 +40,19 @@ books.get('/books/:id', (c) => {
   if (!book) return c.json({ error: 'Not found' }, 404)
 
   const chapters = db.query<any, [number]>(`
-    SELECT id, chapter_idx, title, start_sec, end_sec, duration_sec
+    SELECT id, chapter_idx, title, start_sec, end_sec, duration_sec, file_path
     FROM chapters
     WHERE book_id = ?
     ORDER BY chapter_idx
   `).all(id)
 
-  return c.json({ ...book, chapters }) // per D-12
+  // Derive format: mp3 if first chapter has a file_path, otherwise m4b (per D-05)
+  const format = chapters.length > 0 && chapters[0].file_path !== null ? 'mp3' : 'm4b'
+
+  // Strip file_path from chapters before returning (per D-05: do not expose server paths)
+  const safeChapters = chapters.map(({ file_path: _fp, ...rest }: any) => rest)
+
+  return c.json({ ...book, format, chapters: safeChapters }) // per D-12
 })
 
 export default books

@@ -237,6 +237,104 @@ describe("GET /api/books/:id", () => {
   });
 });
 
+describe("GET /api/books/:id - format field", () => {
+  let db2: Database;
+  let tmpDbPath2: string;
+  let sessionToken2: string;
+
+  beforeEach(() => {
+    tmpDbPath2 = join(tmpdir(), `spine-books-format-test-${Date.now()}-${Math.random()}.db`);
+    process.env['DB_PATH'] = tmpDbPath2;
+    _resetForTests();
+    db2 = openDatabase(tmpDbPath2);
+
+    sessionToken2 = 'test-format-session';
+    const futureDate = new Date(Date.now() + 86400000).toISOString();
+    db2.query('INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)').run(10, 'testuser', '$argon2id$dummy', 'user');
+    db2.query('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)').run(sessionToken2, 10, futureDate);
+
+    // Book 1: m4b book with chapters (file_path NULL)
+    db2.query('INSERT INTO books (id, file_path, file_mtime, file_size, is_missing, title, author, narrator, duration_sec) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(1, '/path/book.m4b', 1000, 5000, 0, 'M4B Book', 'Author A', null, 3600);
+    db2.query('INSERT INTO chapters (book_id, chapter_idx, title, start_sec, end_sec, duration_sec) VALUES (?, ?, ?, ?, ?, ?)').run(1, 0, 'Ch 1', 0, 1800, 1800);
+
+    // Book 2: MP3 book with chapters (file_path populated)
+    db2.query('INSERT INTO books (id, file_path, file_mtime, file_size, is_missing, title, author, narrator, duration_sec) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(2, '/path/mp3folder', 1000, 0, 0, 'MP3 Book', 'Author B', null, 7200);
+    db2.query('INSERT INTO chapters (book_id, chapter_idx, title, start_sec, end_sec, duration_sec, file_path) VALUES (?, ?, ?, ?, ?, ?, ?)').run(2, 0, 'Track 1', 0, 3600, 3600, '/path/track01.mp3');
+    db2.query('INSERT INTO chapters (book_id, chapter_idx, title, start_sec, end_sec, duration_sec, file_path) VALUES (?, ?, ?, ?, ?, ?, ?)').run(2, 1, 'Track 2', 3600, 7200, 3600, '/path/track02.mp3');
+
+    // Book 3: book with no chapters
+    db2.query('INSERT INTO books (id, file_path, file_mtime, file_size, is_missing, title, author, narrator, duration_sec) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(3, '/path/nochapters.m4b', 1000, 1000, 0, 'No Chapters', 'Author C', null, 600);
+  });
+
+  afterEach(() => {
+    db2.close();
+    _resetForTests();
+    delete process.env['DB_PATH'];
+    try {
+      rmSync(tmpDbPath2, { force: true });
+      rmSync(`${tmpDbPath2}-wal`, { force: true });
+      rmSync(`${tmpDbPath2}-shm`, { force: true });
+    } catch { /* ignore */ }
+  });
+
+  async function makeBooksAppFresh() {
+    const { authMiddleware } = await import("../middleware/auth.js");
+    const booksRoutes = (await import("../routes/books.js")).default;
+    const app = new Hono();
+    app.use('/api/*', authMiddleware);
+    app.route('/api', booksRoutes);
+    return app;
+  }
+
+  it("returns format='m4b' for m4b book (chapters with file_path=NULL)", async () => {
+    const app = await makeBooksAppFresh();
+    const res = await app.request('/api/books/1', {
+      headers: { Cookie: `session=${sessionToken2}` }
+    });
+
+    expect(res.status).toBe(200);
+    const book = await res.json() as any;
+    expect(book.format).toBe('m4b');
+  });
+
+  it("returns format='mp3' for MP3 book (chapters with file_path set)", async () => {
+    const app = await makeBooksAppFresh();
+    const res = await app.request('/api/books/2', {
+      headers: { Cookie: `session=${sessionToken2}` }
+    });
+
+    expect(res.status).toBe(200);
+    const book = await res.json() as any;
+    expect(book.format).toBe('mp3');
+  });
+
+  it("returns format='m4b' (default) for book with no chapters", async () => {
+    const app = await makeBooksAppFresh();
+    const res = await app.request('/api/books/3', {
+      headers: { Cookie: `session=${sessionToken2}` }
+    });
+
+    expect(res.status).toBe(200);
+    const book = await res.json() as any;
+    expect(book.format).toBe('m4b');
+  });
+
+  it("does NOT expose file_path in any chapter object (per D-05)", async () => {
+    const app = await makeBooksAppFresh();
+    const res = await app.request('/api/books/2', {
+      headers: { Cookie: `session=${sessionToken2}` }
+    });
+
+    expect(res.status).toBe(200);
+    const book = await res.json() as any;
+    expect(Array.isArray(book.chapters)).toBe(true);
+    expect(book.chapters.length).toBeGreaterThan(0);
+    for (const chapter of book.chapters) {
+      expect('file_path' in chapter).toBe(false);
+    }
+  });
+});
+
 describe("GET /api/books/:id/cover", () => {
   it("returns cover image with correct content type when cover_path exists", async () => {
     const app = await makeBooksApp();
