@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A self-hosted audiobook platform that turns a local folder of .m4b files into a browser-based, offline-capable listening experience. A Node/Bun backend scans and catalogs audiobooks, extracts metadata and chapters, and exposes a REST API. A lightweight Alpine + Workbox PWA lets household members browse, stream, download, and resume audiobooks across devices — replacing Audible with something you own and control.
+A self-hosted audiobook platform that turns a local folder of .m4b and MP3 files into a browser-based, offline-capable listening experience. A Bun backend scans and catalogs audiobooks (single-file .m4b and multi-file MP3 folders), extracts metadata and chapters, and exposes a REST API. A lightweight Alpine + Workbox PWA lets household members browse, stream, download, and resume audiobooks across devices — replacing Audible with something you own and control.
 
 ## Core Value
 
@@ -10,20 +10,30 @@ A household can browse their audiobook library, listen with full player controls
 
 ## Current State
 
-**Shipped: v1.0** (2026-03-23)
+**Shipped: v1.1** (2026-03-25)
 
-All core functionality delivered:
+Everything from v1.0 plus:
+- Admin UI — user management (create, delete, password reset) and library rescan with live progress
+- Cross-device progress sync — server-backed with furthest-position-wins resume
+- Library grid shows reading progress percentage on each tile
+- MP3 folder scanning — multi-file audiobooks with disc-aware track ordering
+- MP3 playback — seamless track transitions, cross-track seeking, per-track offline download
+- Audnexus metadata enrichment (description, cover, narrator, series)
+- Force rescan for re-probing all books
+
+<details>
+<summary>v1.0 (2026-03-23)</summary>
+
 - .m4b library scanning with ffprobe metadata/chapter extraction
-- Auth with Argon2id, session cookies, admin user management
+- Auth with Argon2id, session cookies, admin roles
 - PWA with Alpine.js — library grid, search, detail view
 - Full audio player — chapters, speed, skip, sleep timer, keyboard shortcuts
 - Per-user progress tracking via IndexedDB (local-first)
 - Lock-screen controls via Media Session API
 - Offline download with Workbox CacheFirst + RangeRequestsPlugin
 - Dockerized single-container deployment
-- Admin user management with create/delete/password-reset
-- Admin-triggered library rescan with live SSE progress bar and Audnexus metadata enrichment
-- Cross-device progress sync — server-backed PUT/GET API, furthest-position-wins resume, offline queue flush, tile progress bars
+
+</details>
 
 **Outstanding:**
 - Phase 05 lock-screen UAT (5 items, requires Android device testing)
@@ -50,26 +60,16 @@ All core functionality delivered:
 | Full auth over simple profiles | Household needs real account separation | Validated — Phase 02 |
 | Raw IndexedDB (no idb library) | Single-store schemas are simple enough | Validated — Phases 04, 06 |
 | Covers written to /data/covers/ | Books volume mounted read-only in Docker | Post-v1.0 fix |
+| Album tag → book title for MP3 | MP3 ID3 convention: title=track name, album=book name | Phase 11 fix |
 
 ## Out of Scope
 
-- ~~Multi-format support~~ — MP3 folder scanning shipped in Phase 10 (v1.1)
-- Real-time progress sync — local-first by design; manual sync planned for v2
+- Real-time progress sync — local-first by design; push/pull is sufficient
 - Per-chapter downloads — whole book download only
 - Social features — personal household use
 - Native mobile apps — PWA covers the use case
-- Transcoding — serve .m4b directly
-
-## Current Milestone: v1.1 Admin Tools & Library Improvements
-
-**Goal:** Give the admin control over users and the library, show reading progress in the UI, sync progress across devices, and support MP3 audiobook folders.
-
-**Target features:**
-- Admin UI for user creation/management (create, delete, reset passwords)
-- Admin-triggered library rescan from the browser
-- Reading progress indicator (%) on library grid tiles
-- Progress sync to backend (push local progress, fetch on resume, conflict handling)
-- MP3 folder support — scan folders of .mp3 files as audiobooks, derive metadata from folder/file names
+- Transcoding — serve files directly
+- Multi-format beyond MP3 — FLAC, OGG not in user's collection
 
 ## Context
 
@@ -77,7 +77,8 @@ All core functionality delivered:
 - Household of a few people, each needing their own progress tracking
 - ffprobe is the standard tool for .m4b metadata and chapter markers
 - "Normalize once" philosophy: scan/extract at ingest time, not on every request
-- MP3 audiobook collections have inconsistent folder structures — scanner must handle multiple naming patterns
+- MP3 audiobook collections have inconsistent folder structures — scanner handles multiple naming patterns
+- ~6,100 lines TypeScript + ~250 lines JS (player-utils, sw.js)
 
 ## Evolution
 
@@ -97,4 +98,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-25 — Phase 11 (MP3 player support) complete — v1.1 milestone finished*
+*Last updated: 2026-03-25 after v1.1 milestone*
