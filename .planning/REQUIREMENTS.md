@@ -27,8 +27,8 @@
 
 ### Progress
 
-- [ ] **PROG-05**: User's playback progress is synced to the backend when online
-- [ ] **PROG-06**: On book open, app pulls server progress and uses furthest position (no data loss)
+- [x] **PROG-05**: User's playback progress is synced to the backend when online
+- [x] **PROG-06**: On book open, app pulls server progress and uses furthest position (no data loss)
 - [ ] **PROG-07**: Progress sync works seamlessly with existing offline-first IndexedDB storage
 - [ ] **PROG-08**: Library grid tiles show reading progress percentage on book covers
 
@@ -69,8 +69,8 @@
 | LIBM-05 | Phase 10 | Pending |
 | LIBM-06 | Phase 10 | Pending |
 | LIBM-07 | Phase 10 | Pending |
-| PROG-05 | Phase 9 | Pending |
-| PROG-06 | Phase 9 | Pending |
+| PROG-05 | Phase 9 | Complete |
+| PROG-06 | Phase 9 | Complete |
 | PROG-07 | Phase 9 | Pending |
 | PROG-08 | Phase 9 | Pending |
 | PLAY-09 | Phase 11 | Pending |

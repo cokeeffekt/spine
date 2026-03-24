@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Admin Tools & Library Improvements
-status: Ready to plan
-stopped_at: Phase 9 context gathered
-last_updated: "2026-03-24T00:24:18.950Z"
+status: Ready to execute
+stopped_at: Completed 09-01-PLAN.md
+last_updated: "2026-03-24T02:26:44.721Z"
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 6
+  completed_plans: 5
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** A household can browse their audiobook library, listen with full player controls, and pick up exactly where they left off — on any device, even offline.
-**Current focus:** Phase 08 — library-rescan-ui
+**Current focus:** Phase 09 — progress-sync-and-tiles
 
 ## Current Position
 
-Phase: 9
-Plan: Not started
+Phase: 09 (progress-sync-and-tiles) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -44,6 +44,7 @@ Plan: Not started
 | Phase 07-admin-user-management P01 | 2 | 1 tasks | 6 files |
 | Phase 07-admin-user-management P02 | 90 | 3 tasks | 3 files |
 | Phase 08-library-rescan-ui P01 | 7 | 2 tasks | 10 files |
+| Phase 09-progress-sync-and-tiles P01 | 110 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,9 @@ Key decisions affecting v1.1:
 - [Phase 08-01]: Enrichment fills null fields only (D-11) — never overwrites existing non-null data, preserves manually set metadata
 - [Phase 08-02]: x-show (not x-if) used for tab panels — preserves reactive DOM state when switching tabs (Pitfall 6)
 - [Phase 08-02]: EventSource es.close() called inside done handler — prevents onerror reconnect loop (Pitfall 2)
+- [Phase 09-01]: No server-side MAX guard on PUT progress: client handles furthest-position-wins conflict resolution per D-06
+- [Phase 09-01]: Progress table in main db.exec() block (not try/catch migration): CREATE TABLE IF NOT EXISTS is idempotent per Pitfall 5
+- [Phase 09-01]: GET /api/progress returns map keyed by string book_id for frontend key lookups
 
 ### Pending Todos
 
@@ -80,6 +84,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T00:24:18.948Z
-Stopped at: Phase 9 context gathered
-Resume file: .planning/phases/09-progress-sync-and-tiles/09-CONTEXT.md
+Last session: 2026-03-24T02:26:44.719Z
+Stopped at: Completed 09-01-PLAN.md
+Resume file: None

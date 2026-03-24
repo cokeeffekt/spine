@@ -68,7 +68,7 @@ Plans:
   4. A user who has never opened a book sees no percentage indicator on that tile
 **Plans**: 2 plans
 Plans:
-- [ ] 09-01-PLAN.md — Backend: progress table schema, PUT/GET progress API endpoints, unit tests
+- [x] 09-01-PLAN.md — Backend: progress table schema, PUT/GET progress API endpoints, unit tests
 - [ ] 09-02-PLAN.md — Frontend: server push, offline flush, furthest-position-wins, tile progress bars
 
 ### Phase 10: MP3 Folder Scanner
@@ -106,6 +106,6 @@ Plans:
 | 6. Offline Download | v1.0 | 3/3 | Complete | 2026-03-23 |
 | 7. Admin User Management | v1.1 | 2/2 | Complete   | 2026-03-23 |
 | 8. Library Rescan UI | v1.1 | 2/2 | Complete   | 2026-03-24 |
-| 9. Progress Sync and Tiles | v1.1 | 0/2 | Not started | - |
+| 9. Progress Sync and Tiles | v1.1 | 1/2 | In Progress|  |
 | 10. MP3 Folder Scanner | v1.1 | 0/? | Not started | - |
 | 11. MP3 Player Support | v1.1 | 0/? | Not started | - |
