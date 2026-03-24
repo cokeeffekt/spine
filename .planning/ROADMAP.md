@@ -21,7 +21,7 @@
 - [x] **Phase 7: Admin User Management** - Admin can manage all user accounts from the browser (completed 2026-03-23)
 - [x] **Phase 8: Library Rescan UI** - Admin can trigger and monitor a library rescan from the browser (completed 2026-03-24)
 - [x] **Phase 9: Progress Sync and Tiles** - Progress syncs to the server and shows as percentage on grid tiles (completed 2026-03-24)
-- [ ] **Phase 10: MP3 Folder Scanner** - MP3 folder collections are scanned and cataloged as audiobooks
+- [x] **Phase 10: MP3 Folder Scanner** - MP3 folder collections are scanned and cataloged as audiobooks (completed 2026-03-24)
 - [ ] **Phase 11: MP3 Player Support** - MP3 books play correctly with track-boundary handling
 
 ## Phase Details
@@ -83,7 +83,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 10-01-PLAN.md — Foundation: mp3-sort utilities (TDD), schema migration, type extensions
-- [ ] 10-02-PLAN.md — Scanner: walkLibrary refactor, scanFolder, fallback metadata, integration tests
+- [x] 10-02-PLAN.md — Scanner: walkLibrary refactor, scanFolder, fallback metadata, integration tests
 
 ### Phase 11: MP3 Player Support
 **Goal**: MP3 books play from start to finish with seamless track transitions and correct seeking across track boundaries
@@ -110,5 +110,5 @@ Plans:
 | 7. Admin User Management | v1.1 | 2/2 | Complete   | 2026-03-23 |
 | 8. Library Rescan UI | v1.1 | 2/2 | Complete   | 2026-03-24 |
 | 9. Progress Sync and Tiles | v1.1 | 2/2 | Complete   | 2026-03-24 |
-| 10. MP3 Folder Scanner | v1.1 | 1/2 | In Progress|  |
+| 10. MP3 Folder Scanner | v1.1 | 2/2 | Complete   | 2026-03-24 |
 | 11. MP3 Player Support | v1.1 | 0/? | Not started | - |

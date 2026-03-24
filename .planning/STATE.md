@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Admin Tools & Library Improvements
-status: Ready to execute
-stopped_at: Completed 10-01-PLAN.md
-last_updated: "2026-03-24T10:03:17.253Z"
+status: Phase complete — ready for verification
+stopped_at: Completed 10-02-PLAN.md
+last_updated: "2026-03-24T10:13:11.999Z"
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -47,6 +47,7 @@ Plan: 2 of 2
 | Phase 09-progress-sync-and-tiles P01 | 110 | 2 tasks | 4 files |
 | Phase 09-progress-sync-and-tiles P02 | 480 | 3 tasks | 2 files |
 | Phase 10-mp3-folder-scanner P01 | 2 | 2 tasks | 4 files |
+| Phase 10-mp3-folder-scanner P02 | 7 | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,10 @@ Key decisions affecting v1.1:
 - [Phase 09-02]: progressRes.ok guard in loadBooks() prevents setting progressMap to error object on 401
 - [Phase 10-01]: sortTracks uses generic T extends track shape to preserve caller type; localeCompare numeric:true for natural filename sort
 - [Phase 10-01]: chapters.file_path migration placed after asin migration — NULL default means no INSERT changes needed for m4b scanFile
+- [Phase 10-02]: walkLibrary returns ScanItem[] union type (not string[]) — enables type-safe branching in scanLibrary on item.kind
+- [Phase 10-02]: Standalone mp3 rule: < 2 direct mp3 files in a folder = not treated as book folder
+- [Phase 10-02]: scanFolder cover art uses inline folder scan, not resolveCoverPath — resolveCoverPath path.dirname returns parent when given a directory path
+- [Phase 10-02]: Pitfall 5: series_position matching /^\d+(?:\/\d+)?$/ nulled in mergeTrackMetadata — probe.ts maps 'track' tag to series_position, so TRCK values land there for MP3 files
 
 ### Pending Todos
 
@@ -91,6 +96,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T10:03:17.251Z
-Stopped at: Completed 10-01-PLAN.md
+Last session: 2026-03-24T10:13:11.997Z
+Stopped at: Completed 10-02-PLAN.md
 Resume file: None
