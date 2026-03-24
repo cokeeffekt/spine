@@ -80,7 +80,10 @@ Plans:
   2. Tracks within the book play in correct order (track 1, 2, 3 — not lexicographic 1, 10, 2)
   3. Book title, author, and cover art are populated from ID3 tags when available, falling back to folder/file names
   4. A multi-disc folder layout (Disc 1/, Disc 2/ subfolders) is flattened into a single book in correct disc order
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 10-01-PLAN.md — Foundation: mp3-sort utilities (TDD), schema migration, type extensions
+- [ ] 10-02-PLAN.md — Scanner: walkLibrary refactor, scanFolder, fallback metadata, integration tests
 
 ### Phase 11: MP3 Player Support
 **Goal**: MP3 books play from start to finish with seamless track transitions and correct seeking across track boundaries
@@ -107,5 +110,5 @@ Plans:
 | 7. Admin User Management | v1.1 | 2/2 | Complete   | 2026-03-23 |
 | 8. Library Rescan UI | v1.1 | 2/2 | Complete   | 2026-03-24 |
 | 9. Progress Sync and Tiles | v1.1 | 2/2 | Complete   | 2026-03-24 |
-| 10. MP3 Folder Scanner | v1.1 | 0/? | Not started | - |
+| 10. MP3 Folder Scanner | v1.1 | 0/2 | Not started | - |
 | 11. MP3 Player Support | v1.1 | 0/? | Not started | - |
