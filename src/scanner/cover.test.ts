@@ -67,11 +67,12 @@ describe("walkLibrary", () => {
 
       const result = walkLibrary(tmpDir);
 
-      expect(result).toHaveLength(3);
-      expect(result.every((p) => p.endsWith(".m4b"))).toBe(true);
-      expect(result).toContain(path.join(tmpDir, "root-book.m4b"));
-      expect(result).toContain(path.join(subDir1, "book1.m4b"));
-      expect(result).toContain(path.join(subDir2, "book2.m4b"));
+      const filePaths = result.filter((i) => i.kind === "file").map((i) => i.path);
+      expect(filePaths).toHaveLength(3);
+      expect(filePaths.every((p) => p.endsWith(".m4b"))).toBe(true);
+      expect(filePaths).toContain(path.join(tmpDir, "root-book.m4b"));
+      expect(filePaths).toContain(path.join(subDir1, "book1.m4b"));
+      expect(filePaths).toContain(path.join(subDir2, "book2.m4b"));
     } finally {
       fs.rmSync(tmpDir, { recursive: true });
     }

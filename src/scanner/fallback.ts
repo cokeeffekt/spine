@@ -24,20 +24,41 @@ export type FallbackMetadataJson = {
  *
  * Priority (per D-07): embedded metadata always wins.
  * Fallback sources fill null fields only:
- *   1. metadata.json in the same directory as the .m4b file
+ *   1. metadata.json in the same directory as the .m4b file (or inside the folder when isFolder=true)
  *   2. Folder name used as title hint when all other title sources are empty
+ *   3. (isFolder only) Grandparent folder name used as author hint — D-05
+ *
+ * When isFolder=true, the path is treated as a directory:
+ *   - title fallback uses path.basename(normalized) (the folder name itself)
+ *   - author fallback uses path.basename(path.dirname(normalized)) (grandparent = author)
+ *   - metadata.json looked up at path.join(normalized, "metadata.json") (inside the folder)
  *
  * Returns a new metadata object (mutates a shallow copy).
  */
 export function applyFallbackMetadata(
   metadata: NormalizedMetadata,
-  m4bPath: string
+  filePath: string,
+  isFolder?: boolean
 ): NormalizedMetadata {
   const result = { ...metadata };
-  const dir = path.dirname(m4bPath);
 
-  // --- Step 1: Read metadata.json from the same directory ---
-  const metaJsonPath = path.join(dir, "metadata.json");
+  let dir: string;
+  let metaJsonPath: string;
+  let titleFallback: string;
+
+  if (isFolder) {
+    // Strip trailing slash before path operations
+    const normalized = filePath.replace(/\/+$/, "");
+    dir = normalized;
+    metaJsonPath = path.join(normalized, "metadata.json");
+    titleFallback = path.basename(normalized);
+  } else {
+    dir = path.dirname(filePath);
+    metaJsonPath = path.join(dir, "metadata.json");
+    titleFallback = path.basename(dir);
+  }
+
+  // --- Step 1: Read metadata.json ---
   if (fs.existsSync(metaJsonPath)) {
     let fallback: FallbackMetadataJson;
     try {
@@ -63,7 +84,16 @@ export function applyFallbackMetadata(
 
   // --- Step 2: Use folder name as title hint when title is still null ---
   if (result.title === null) {
-    result.title = path.basename(dir);
+    result.title = titleFallback;
+  }
+
+  // --- Step 3: (isFolder only) Use grandparent folder name as author hint --- D-05
+  if (isFolder && result.author === null) {
+    const normalized = filePath.replace(/\/+$/, "");
+    const grandparent = path.basename(path.dirname(normalized));
+    if (grandparent && grandparent !== ".") {
+      result.author = grandparent;
+    }
   }
 
   return result;
