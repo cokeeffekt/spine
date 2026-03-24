@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Admin Tools & Library Improvements
-status: Ready to plan
-stopped_at: Phase 11 context gathered
-last_updated: "2026-03-24T10:53:08.293Z"
+status: Ready to execute
+stopped_at: Completed 11-01-PLAN.md
+last_updated: "2026-03-24T11:32:10.732Z"
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 10
+  completed_plans: 9
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** A household can browse their audiobook library, listen with full player controls, and pick up exactly where they left off — on any device, even offline.
-**Current focus:** Phase 10 — mp3-folder-scanner
+**Current focus:** Phase 11 — mp3-player-support
 
 ## Current Position
 
-Phase: 11
-Plan: Not started
+Phase: 11 (mp3-player-support) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Plan: Not started
 | Phase 09-progress-sync-and-tiles P02 | 480 | 3 tasks | 2 files |
 | Phase 10-mp3-folder-scanner P01 | 2 | 2 tasks | 4 files |
 | Phase 10-mp3-folder-scanner P02 | 7 | 3 tasks | 5 files |
+| Phase 11-mp3-player-support P01 | 2 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,9 @@ Key decisions affecting v1.1:
 - [Phase 10-02]: Standalone mp3 rule: < 2 direct mp3 files in a folder = not treated as book folder
 - [Phase 10-02]: scanFolder cover art uses inline folder scan, not resolveCoverPath — resolveCoverPath path.dirname returns parent when given a directory path
 - [Phase 10-02]: Pitfall 5: series_position matching /^\d+(?:\/\d+)?$/ nulled in mergeTrackMetadata — probe.ts maps 'track' tag to series_position, so TRCK values land there for MP3 files
+- [Phase 11-01]: New /books/:id/audio/:chapterIdx route registered before /books/:id/audio so Hono matches the more-specific path first
+- [Phase 11-01]: format field derived from chapters[0].file_path at query time — no new books table column needed
+- [Phase 11-01]: file_path stripped from chapter response objects via destructuring to avoid exposing server paths (D-05)
 
 ### Pending Todos
 
@@ -96,6 +100,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-24T10:53:08.290Z
-Stopped at: Phase 11 context gathered
-Resume file: .planning/phases/11-mp3-player-support/11-CONTEXT.md
+Last session: 2026-03-24T11:32:10.730Z
+Stopped at: Completed 11-01-PLAN.md
+Resume file: None

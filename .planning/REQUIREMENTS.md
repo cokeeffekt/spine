@@ -34,7 +34,7 @@
 
 ### Player
 
-- [ ] **PLAY-09**: Player handles multi-file MP3 books — swaps audio source at track boundaries
+- [x] **PLAY-09**: Player handles multi-file MP3 books — swaps audio source at track boundaries
 - [ ] **PLAY-10**: Seeking across MP3 track boundaries works correctly
 
 ## Future Requirements
@@ -73,7 +73,7 @@
 | PROG-06 | Phase 9 | Complete |
 | PROG-07 | Phase 9 | Complete |
 | PROG-08 | Phase 9 | Complete |
-| PLAY-09 | Phase 11 | Pending |
+| PLAY-09 | Phase 11 | Complete |
 | PLAY-10 | Phase 11 | Pending |
 | LIBM-08 | Phase 8 | Complete |
 | LIBM-09 | Phase 8 | Complete |
