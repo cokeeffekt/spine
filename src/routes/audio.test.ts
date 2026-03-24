@@ -202,3 +202,106 @@ describe("GET /api/books/:id/audio - error cases", () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ============================================================
+// Per-track MP3 audio route: GET /api/books/:id/audio/:chapterIdx
+// ============================================================
+
+let tmpMp3Path: string;
+
+// Extend beforeEach by re-using global db/sessionToken — add MP3 chapters after the base setup
+// We patch a describe-scoped beforeEach below to seed the MP3 data.
+
+describe("GET /api/books/:id/audio/:chapterIdx", () => {
+  beforeEach(() => {
+    // Create a temp .mp3 file for MP3 track test
+    tmpMp3Path = join(tmpdir(), `track-${Date.now()}.mp3`);
+    const mp3Data = Buffer.alloc(AUDIO_FILE_SIZE);
+    for (let i = 0; i < AUDIO_FILE_SIZE; i++) mp3Data[i] = i % 256;
+    writeFileSync(tmpMp3Path, mp3Data);
+
+    // Seed chapters for book 1 (m4b — file_path NULL)
+    db.query(
+      'INSERT INTO chapters (book_id, chapter_idx, title, start_sec, end_sec, duration_sec) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(1, 0, 'Chapter 1', 0, 1800, 1800);
+
+    // Seed book 3 as MP3 book with chapters that have file_path
+    db.query(
+      'INSERT INTO books (id, file_path, file_mtime, file_size, is_missing, title, author, narrator, duration_sec) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(3, '/fake/mp3folder', 1000, 0, 0, 'MP3 Book', 'Author', null, 3600.0);
+    db.query(
+      'INSERT INTO chapters (book_id, chapter_idx, title, start_sec, end_sec, duration_sec, file_path) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(3, 0, 'Track 1', 0, 1800, 1800, tmpMp3Path);
+    db.query(
+      'INSERT INTO chapters (book_id, chapter_idx, title, start_sec, end_sec, duration_sec, file_path) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(3, 1, 'Track 2', 1800, 3600, 1800, tmpMp3Path);
+  });
+
+  afterEach(() => {
+    try { rmSync(tmpMp3Path, { force: true }); } catch { /* ignore */ }
+  });
+
+  it("returns 200 with Content-Type audio/mpeg and Accept-Ranges bytes (no Range header)", async () => {
+    const app = await makeAudioApp();
+    const res = await app.request('/api/books/3/audio/0', {
+      headers: { Cookie: `session=${sessionToken}` }
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('audio/mpeg');
+    expect(res.headers.get('accept-ranges')).toBe('bytes');
+    expect(res.headers.get('content-length')).toBe(String(AUDIO_FILE_SIZE));
+  });
+
+  it("returns 206 with correct Content-Range for bytes=0-1023", async () => {
+    const app = await makeAudioApp();
+    const res = await app.request('/api/books/3/audio/0', {
+      headers: {
+        Cookie: `session=${sessionToken}`,
+        Range: 'bytes=0-1023'
+      }
+    });
+
+    expect(res.status).toBe(206);
+    expect(res.headers.get('content-type')).toBe('audio/mpeg');
+    expect(res.headers.get('content-range')).toBe(`bytes 0-1023/${AUDIO_FILE_SIZE}`);
+    expect(res.headers.get('content-length')).toBe('1024');
+    expect(res.headers.get('accept-ranges')).toBe('bytes');
+  });
+
+  it("returns 404 for nonexistent chapter index (chapterIdx=99)", async () => {
+    const app = await makeAudioApp();
+    const res = await app.request('/api/books/3/audio/99', {
+      headers: { Cookie: `session=${sessionToken}` }
+    });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 404 for m4b book chapter (file_path IS NULL)", async () => {
+    const app = await makeAudioApp();
+    // Book 1 chapter 0 has file_path=NULL (m4b chapter)
+    const res = await app.request('/api/books/1/audio/0', {
+      headers: { Cookie: `session=${sessionToken}` }
+    });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 401 without session cookie", async () => {
+    const app = await makeAudioApp();
+    const res = await app.request('/api/books/3/audio/0');
+
+    expect(res.status).toBe(401);
+  });
+
+  it("regression: existing GET /api/books/:id/audio still works unchanged", async () => {
+    const app = await makeAudioApp();
+    const res = await app.request('/api/books/1/audio', {
+      headers: { Cookie: `session=${sessionToken}` }
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('audio/mp4');
+  });
+});
