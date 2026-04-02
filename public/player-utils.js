@@ -75,15 +75,17 @@ function buildMediaMetadata(book, chapterIdx) {
   const chapters = book.chapters || []
   const ch = chapters[chapterIdx] || null
   const chNum = chapterIdx + 1
-  const title = ch
-    ? book.title + ' -- Ch. ' + chNum + ': ' + ch.title
+  const total = chapters.length
+  const chLabel = ch ? ch.title : ''
+  const title = total > 1
+    ? book.title + ' (' + chNum + '/' + total + ')' + (chLabel ? ' ' + chLabel : '')
     : book.title
   const coverSrc = book.cover_url ?? '/images/default-cover.svg'
   const coverType = book.cover_url ? 'image/jpeg' : 'image/svg+xml'
   return {
     title,
     artist: book.author ?? '',
-    album: '',
+    album: book.title,
     artwork: [
       { src: coverSrc, sizes: '96x96', type: coverType },
       { src: coverSrc, sizes: '512x512', type: coverType },

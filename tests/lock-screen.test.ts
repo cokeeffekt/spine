@@ -15,11 +15,11 @@ describe('buildMediaMetadata', () => {
     chapters,
   }
 
-  test('Test 1: title format is "{Book Title} -- Ch. N: {Chapter Name}"', () => {
+  test('Test 1: title format is "{Book Title} (N/Total) {Chapter Name}"', () => {
     const meta = buildMediaMetadata(book, 0)
-    expect(meta.title).toBe('Book Title -- Ch. 1: Chapter One')
+    expect(meta.title).toBe('Book Title (1/2) Chapter One')
     expect(meta.artist).toBe('Author Name')
-    expect(meta.album).toBe('')
+    expect(meta.album).toBe('Book Title')
   })
 
   test('Test 2: artwork has 2 entries with correct sizes and src', () => {

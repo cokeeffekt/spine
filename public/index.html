@@ -782,7 +782,11 @@
     <div class="player-progress-strip">
       <div class="player-progress-fill" :style="'width:' + (
         $store.player.currentChapter
-          ? Math.round(Math.max(0, Math.min(1, ($store.player.currentTime - $store.player.currentChapter.start_sec) / ($store.player.currentChapter.end_sec - $store.player.currentChapter.start_sec))) * 100)
+          ? Math.round(Math.max(0, Math.min(1,
+              ($store.player.book && $store.player.book.format === 'mp3'
+                ? $store.player.currentTime / $store.player.currentChapter.duration_sec
+                : ($store.player.currentTime - $store.player.currentChapter.start_sec) / ($store.player.currentChapter.end_sec - $store.player.currentChapter.start_sec)
+              ))) * 100)
           : ($store.player.duration > 0 ? Math.round($store.player.currentTime / $store.player.duration * 100) : 0)
       ) + '%'"></div>
     </div>
@@ -799,7 +803,7 @@
         <span class="player-title" x-text="$store.player.book?.title"></span>
         <span class="player-chapter" x-text="$store.player.currentChapter?.title || ''"></span>
       </div>
-      <span class="player-time" x-text="formatTime($store.player.currentTime)"></span>
+      <span class="player-time" x-text="formatTime($store.player.book && $store.player.book.format === 'mp3' ? $store.player._trackCumulativeTime : $store.player.currentTime)"></span>
       <button class="player-btn player-goto-btn" @click.stop="(async () => {
         await $store.library.selectBook($store.player.book.id)
       })()" aria-label="Go to book detail" title="Go to book detail">
@@ -815,22 +819,47 @@
     <div class="player-expanded" x-show="$store.player.expanded" x-transition>
       <!-- Seek bar — chapter-relative (per D-09, Quirk 2) -->
       <div class="player-seek-row">
-        <span class="seek-time" x-text="formatTime($store.player.currentChapter ? $store.player.currentTime - $store.player.currentChapter.start_sec : $store.player.currentTime)"></span>
+        <span class="seek-time" x-text="formatTime(
+          $store.player.currentChapter
+            ? ($store.player.book && $store.player.book.format === 'mp3'
+                ? $store.player.currentTime
+                : $store.player.currentTime - $store.player.currentChapter.start_sec)
+            : $store.player.currentTime
+        )"></span>
         <input type="range" class="seek-bar" min="0"
-          :max="$store.player.currentChapter ? ($store.player.currentChapter.end_sec - $store.player.currentChapter.start_sec) : $store.player.duration"
-          :value="$store.player.currentChapter ? ($store.player.currentTime - $store.player.currentChapter.start_sec) : $store.player.currentTime"
+          :max="$store.player.currentChapter
+            ? ($store.player.book && $store.player.book.format === 'mp3'
+                ? $store.player.currentChapter.duration_sec
+                : $store.player.currentChapter.end_sec - $store.player.currentChapter.start_sec)
+            : $store.player.duration"
+          :value="$store.player.currentChapter
+            ? ($store.player.book && $store.player.book.format === 'mp3'
+                ? $store.player.currentTime
+                : $store.player.currentTime - $store.player.currentChapter.start_sec)
+            : $store.player.currentTime"
           step="1"
-          @input="$store.player.seek(($store.player.currentChapter ? $store.player.currentChapter.start_sec : 0) + parseFloat($event.target.value))"
+          @input="$store.player.seek(
+            ($store.player.book && $store.player.book.format === 'mp3')
+              ? parseFloat($event.target.value)
+              : ($store.player.currentChapter ? $store.player.currentChapter.start_sec : 0) + parseFloat($event.target.value)
+          )"
           aria-label="Seek within chapter">
         <span class="seek-time seek-time-remaining" x-text="'-' + formatTime(
           $store.player.currentChapter
-            ? Math.max(0, $store.player.currentChapter.end_sec - $store.player.currentTime)
+            ? ($store.player.book && $store.player.book.format === 'mp3'
+                ? Math.max(0, $store.player.currentChapter.duration_sec - $store.player.currentTime)
+                : Math.max(0, $store.player.currentChapter.end_sec - $store.player.currentTime))
             : Math.max(0, $store.player.duration - $store.player.currentTime)
         )"></span>
       </div>
 
       <!-- Playback controls row -->
       <div class="player-controls-row">
+        <button class="player-btn" @click="$store.player.jumpToChapter($store.player.currentChapterIdx - 1)"
+                :disabled="$store.player.currentChapterIdx <= 0"
+                aria-label="Previous chapter">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+        </button>
         <button class="player-btn" @click="$store.player.skip(-30)" aria-label="Skip back 30 seconds">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/><text x="9" y="16" font-size="8" fill="currentColor">30</text></svg>
         </button>
@@ -840,6 +869,11 @@
         </button>
         <button class="player-btn" @click="$store.player.skip(30)" aria-label="Skip forward 30 seconds">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/><text x="9" y="16" font-size="8" fill="currentColor">30</text></svg>
+        </button>
+        <button class="player-btn" @click="$store.player.jumpToChapter($store.player.currentChapterIdx + 1)"
+                :disabled="!$store.player.book || $store.player.currentChapterIdx >= ($store.player.book.chapters?.length ?? 1) - 1"
+                aria-label="Next chapter">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
         </button>
       </div>
 
@@ -1122,6 +1156,7 @@
 
           el.addEventListener('pause', () => {
             this.playing = false
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused'
             this._clearSaveInterval()
             this._clearPositionInterval()
             this._saveProgress()
@@ -1140,6 +1175,7 @@
                   el.playbackRate = this.speed
                   el.play()
                   this.playing = true
+                  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'
                   this._startSaveInterval()
                   this._startPositionInterval()
                   this._setMediaMetadata()
@@ -1217,6 +1253,7 @@
             this.speed = el.playbackRate
             el.play()
             this.playing = true
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'
             this._startSaveInterval()
             this._prevChapterIdx = this.currentChapterIdx
             this._setMediaMetadata()
@@ -1231,9 +1268,11 @@
           if (!el) return
           if (this.playing) {
             el.pause()
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused'
           } else {
             el.play()
             this.playing = true
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing'
             this._startSaveInterval()
             this._startPositionInterval()
             this._updatePositionState()
@@ -1361,8 +1400,18 @@
 
         _updatePositionState() {
           if (!('mediaSession' in navigator) || !this.book || !this.currentChapter) return
-          const pos = this.book.format === 'mp3' ? this._trackCumulativeTime : (window._spineAudio?.currentTime ?? 0)
-          const state = chapterPositionState(this.currentChapter, pos, window._spineAudio?.playbackRate ?? 1.0)
+          const el = window._spineAudio
+          const rate = el?.playbackRate ?? 1.0
+          let state
+          if (this.book.format === 'mp3') {
+            // MP3: currentTime is already within-track, use duration_sec directly
+            const dur = this.currentChapter.duration_sec
+            const pos = Math.max(0, Math.min(el?.currentTime ?? 0, dur))
+            state = { duration: dur, playbackRate: rate, position: pos }
+          } else {
+            const pos = el?.currentTime ?? 0
+            state = chapterPositionState(this.currentChapter, pos, rate)
+          }
           if (!state) return
           try {
             navigator.mediaSession.setPositionState(state)
@@ -1687,6 +1736,14 @@
         if (player.book && player.currentChapterIdx > 0) {
           player.jumpToChapter(player.currentChapterIdx - 1)
         }
+      })
+      navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+        const player = Alpine.store('player')
+        if (player.book) player.skip(-(details.seekOffset || 30))
+      })
+      navigator.mediaSession.setActionHandler('seekforward', (details) => {
+        const player = Alpine.store('player')
+        if (player.book) player.skip(details.seekOffset || 30)
       })
       navigator.mediaSession.setActionHandler('seekto', (details) => {
         const player = Alpine.store('player')
