@@ -622,6 +622,23 @@ describe("walkLibrary", () => {
     }
   });
 
+  test("folder with a single .mp3 file produces kind='mp3folder' item", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "spine-walk-test-"));
+    try {
+      const bookDir = path.join(tmpDir, "1. Ice Planet Barbarians");
+      touchMp3(path.join(bookDir, "1. Ice Planet Barbarians.mp3"));
+
+      const result = walkLibrary(tmpDir);
+      const mp3Items = result.filter((i) => i.kind === "mp3folder");
+      expect(mp3Items.length).toBe(1);
+      if (mp3Items[0].kind === "mp3folder") {
+        expect(mp3Items[0].folderPath).toBe(bookDir);
+      }
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true });
+    }
+  });
+
   test("folder with .mp3 files produces kind='mp3folder' item", () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "spine-walk-test-"));
     try {

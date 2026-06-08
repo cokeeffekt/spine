@@ -25,6 +25,7 @@ export type ScanItem =
  *   the parent is skipped (only the children are candidates).
  * - Multi-disc: If a folder has NO direct .mp3 files but ALL child dirs with .mp3 files
  *   are disc subfolders, the parent IS emitted as the mp3folder.
+ * - Single-file MP3 audiobooks (one .mp3 in a folder) ARE emitted as a book.
  *
  * Results are sorted for deterministic output.
  */
@@ -72,13 +73,9 @@ export function walkLibrary(root: string): ScanItem[] {
   // Collect all directories that have .mp3 files
   const mp3Dirs = new Set(mp3ByDir.keys());
 
-  for (const [dir, mp3Files] of mp3ByDir) {
-    // Standalone .mp3 rule: a folder with only 1 direct .mp3 and no disc subfolders
-    // is not treated as a book. Require at least 2 direct .mp3 files for a standalone folder.
-    // (Disc subfolders are handled separately via the multi-disc parent logic.)
+  for (const dir of mp3ByDir.keys()) {
     const folderName = path.basename(dir);
     const isDiscFolder = parseDiscNumber(folderName) !== null;
-    if (!isDiscFolder && mp3Files.length < 2) continue;
 
     // D-03: If the folder contains .m4b files, skip — m4b wins
     if (m4bDirs.has(dir)) continue;
