@@ -5,11 +5,12 @@ import type { AuthVariables } from '../middleware/auth.js'
 
 const users = new Hono<{ Variables: AuthVariables }>()
 
-// All user management is admin-only per D-07
-users.use('/*', adminOnly)
+// adminOnly is applied per-route below. A `users.use('/*', adminOnly)` here
+// would leak to every /api/* path once mounted via app.route('/api', users),
+// because Hono evaluates sub-app middleware in the parent's path namespace.
 
 // GET /api/users — list all users (per D-07, ADMIN-01)
-users.get('/users', (c) => {
+users.get('/users', adminOnly, (c) => {
   const db = getDatabase()
   const rows = db.query<{
     id: number; username: string; role: string;
@@ -21,7 +22,7 @@ users.get('/users', (c) => {
 })
 
 // POST /api/users — create a new user (per D-07, AUTH-01)
-users.post('/users', async (c) => {
+users.post('/users', adminOnly, async (c) => {
   const body = await c.req.json().catch(() => null)
   if (!body || !body.username || !body.password) {
     return c.json({ error: 'Missing username or password' }, 400)
@@ -47,7 +48,7 @@ users.post('/users', async (c) => {
 })
 
 // DELETE /api/users/:id — delete a user (per D-07)
-users.delete('/users/:id', (c) => {
+users.delete('/users/:id', adminOnly, (c) => {
   const id = Number(c.req.param('id'))
   const currentUserId = c.get('userId')
   if (id === currentUserId) {
@@ -77,7 +78,7 @@ users.delete('/users/:id', (c) => {
 })
 
 // PATCH /api/users/:id/password — reset user password (per D-07, D-08)
-users.patch('/users/:id/password', async (c) => {
+users.patch('/users/:id/password', adminOnly, async (c) => {
   const id = Number(c.req.param('id'))
   const body = await c.req.json().catch(() => null)
   if (!body || !body.password) {
