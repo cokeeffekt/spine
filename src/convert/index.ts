@@ -3,7 +3,7 @@ import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
 import type { NormalizedChapter } from "../types.js";
-import { parseFolderName } from "./folder-name.js";
+import { parseFolderName, cleanSearchTitle } from "./folder-name.js";
 import { searchAudibleAsin } from "./audible.js";
 import { fetchAudnexusBook, audnexusGenre, audnexusYear, audnexusSeries, audnexusTitle, audnexusAuthor } from "../scanner/enrichment.js";
 import { downloadCover } from "../scanner/cover.js";
@@ -168,7 +168,9 @@ async function processJob(
   // Hope") and the file duration, so runtime disambiguation picks the right entry rather
   // than the series' book 1 / omnibus.
   const deNumberedTitle = parsed.title.replace(/^\s*\d+\s*[.)\-]\s*/, "").trim();
-  const searchTitle = job.source_kind === "mp3folder" ? (deNumberedTitle || title) : (title || deNumberedTitle);
+  const searchTitle = cleanSearchTitle(
+    job.source_kind === "mp3folder" ? (deNumberedTitle || title) : (title || deNumberedTitle)
+  );
   if (!asin) asin = await searchAudibleAsin(searchTitle, author, { durationSec: book.duration_sec ?? undefined });
   let apiTitle: string | null = null;
   let apiAuthor: string | null = null;
@@ -406,7 +408,7 @@ export async function reEnrichConvertedBooks(db: Database, outputDir: string = g
       ? path.basename(j.source_path, path.extname(j.source_path))
       : path.basename(j.source_path);
     const deNum = parseFolderName(base).title.replace(/^\s*\d+\s*[.)\-]\s*/, "").trim();
-    const searchTitle = deNum || book.title;
+    const searchTitle = cleanSearchTitle(deNum || book.title);
 
     // Use the SOURCE book's author/title (grandparent dir + folder name — reliable) for the
     // search and as fallbacks, since the converted row may carry a junk hyphen-split author or

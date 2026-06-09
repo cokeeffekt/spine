@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { parseFolderName } from "./folder-name.js";
+import { parseFolderName, cleanSearchTitle } from "./folder-name.js";
 
 describe("parseFolderName", () => {
   test("splits on bare hyphen and collapses double spaces", () => {
@@ -59,5 +59,22 @@ describe("parseFolderName", () => {
 
   test("a 4-digit-only folder with no separator is left as the title", () => {
     expect(parseFolderName("2001")).toEqual({ author: null, title: "2001" });
+  });
+});
+
+describe("cleanSearchTitle", () => {
+  test("strips parenthetical reader/edition notes", () => {
+    expect(cleanSearchTitle("The Gunslinger (DT1 - revised edition - read by George Guidall)")).toBe("The Gunslinger");
+    expect(cleanSearchTitle("'Salem's Lot (read by Richard Nazarewich)")).toBe("'Salem's Lot");
+    expect(cleanSearchTitle("The Stand (Complete & Uncut - read by Garrick Hagon)")).toBe("The Stand");
+  });
+  test("strips a trailing 'read by' clause without parens", () => {
+    expect(cleanSearchTitle("On Writing read by Stephen King")).toBe("On Writing");
+  });
+  test("leaves a clean title unchanged", () => {
+    expect(cleanSearchTitle("Galactic Pot-Healer")).toBe("Galactic Pot-Healer");
+  });
+  test("falls back to the trimmed input if cleaning empties it", () => {
+    expect(cleanSearchTitle("(read by Someone)")).toBe("(read by Someone)");
   });
 });

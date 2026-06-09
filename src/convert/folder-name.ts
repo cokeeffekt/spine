@@ -49,3 +49,18 @@ export function parseFolderName(name: string): ParsedName {
 
   return { author: null, title: normalized };
 }
+
+/**
+ * Strip cataloguing cruft from a title before using it to search Audible: parenthetical/bracketed
+ * notes (reader, edition), trailing "read by …" clauses, and dangling separators. Keeps the core
+ * title so a folder like "The Gunslinger (DT1 - revised edition - read by George Guidall)" searches
+ * (and matches) as "The Gunslinger". Returns the trimmed input if cleaning would empty it.
+ */
+export function cleanSearchTitle(title: string | null | undefined): string {
+  let t = (title ?? "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  t = t.replace(/[([{][^)\]}]*[)\]}]/g, " "); // drop (...) [...] {...} groups
+  t = t.replace(/\bread by\b.*$/i, " "); // drop a trailing "read by …" clause
+  t = t.replace(/\s+/g, " ").replace(/[\s\-–—:]+$/g, "").trim();
+  return t || (title ?? "").trim();
+}
