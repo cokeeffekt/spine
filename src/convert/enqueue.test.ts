@@ -4,7 +4,25 @@ import { openDatabase, _resetForTests } from "../db/index.js";
 import { join } from "path";
 import { tmpdir } from "os";
 import { rmSync } from "fs";
-import { enqueueUnmaterialized } from "./index.js";
+import { enqueueUnmaterialized, libraryAuthorFromPath } from "./index.js";
+
+describe("libraryAuthorFromPath", () => {
+  const roots = ["/books", "/converted"];
+  test("returns the author folder (first segment under the root)", () => {
+    expect(libraryAuthorFromPath("/books/Stephen King/1983 - Christine", roots)).toBe("Stephen King");
+  });
+  test("uses the top author folder for nested anthology/alternate layouts", () => {
+    expect(
+      libraryAuthorFromPath("/books/Stephen King/1982 - Different Seasons/1| Hope Springs Eternal", roots)
+    ).toBe("Stephen King");
+  });
+  test("returns null when the book sits directly under a root", () => {
+    expect(libraryAuthorFromPath("/books/14. Barbarian's Rescue", roots)).toBeNull();
+  });
+  test("returns null when not under any root", () => {
+    expect(libraryAuthorFromPath("/elsewhere/Author/Book", roots)).toBeNull();
+  });
+});
 
 let db: Database;
 let dbPath: string;
