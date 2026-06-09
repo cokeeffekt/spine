@@ -337,9 +337,13 @@ export async function runConverter(db: Database, outputDir: string = getConvertO
       };
       try {
         const { outputPath, chapterSource, resolved } = await processJob(db, job, outputDir, onProgress);
+        // NOTE: do NOT write `resolved` into metadata_json — that column holds admin edits
+        // (the PATCH route), and the resolved values already land in the books table. Writing
+        // the snapshot here would make stale/junk resolved values win as "overrides" on any
+        // re-conversion or re-enrich.
         db.prepare(
-          `UPDATE conversion_jobs SET status = 'completed', progress = 1, output_path = ?, chapter_source = ?, asin = ?, metadata_json = ?, error = NULL, updated_at = datetime('now') WHERE id = ?`
-        ).run(outputPath, chapterSource, (resolved as any).asin ?? null, JSON.stringify(resolved), job.id);
+          `UPDATE conversion_jobs SET status = 'completed', progress = 1, output_path = ?, chapter_source = ?, asin = ?, error = NULL, updated_at = datetime('now') WHERE id = ?`
+        ).run(outputPath, chapterSource, (resolved as any).asin ?? null, job.id);
         completed++;
         convertEmitter.emit("progress", { type: "job", id: job.id, source: job.source_path, status: "completed", progress: 1 } as ConvertProgressEvent);
       } catch (err) {
