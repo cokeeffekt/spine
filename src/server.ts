@@ -3,7 +3,8 @@ import { serveStatic } from "hono/bun";
 import { getDatabase } from "./db/index.js";
 import { scanLibrary } from "./scanner/index.js";
 import { startWatcher } from "./scanner/watcher.js";
-import { getLibraryRoots } from "./config.js";
+import { runConverter } from "./convert/index.js";
+import { getLibraryRoots, getConvertOutputDir, isConvertEnabled } from "./config.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { bootstrapAdmin } from "./db/bootstrap.js";
 import authRoutes from "./routes/auth.js";
@@ -72,5 +73,13 @@ if (process.env["NODE_ENV"] !== "test") {
     startWatcher(db, libraryRoots);
     const intervalMs = parseInt(process.env["SCAN_INTERVAL_MS"] ?? "300000", 10);
     console.log(`Library watcher started (interval: ${intervalMs}ms)`);
+
+    // Resume any pending conversions left over from a previous run (belt-and-suspenders;
+    // the initial scan also kicks the converter once it completes).
+    if (isConvertEnabled()) {
+      runConverter(db, getConvertOutputDir()).catch((err) => {
+        console.error('[server] Converter resume failed:', err);
+      });
+    }
   })();
 }

@@ -19,6 +19,7 @@ import {
   getMonolithicFileThreshold,
   getFixedChapterSec,
   isConvertEnabled,
+  getConvertConcurrency,
 } from "../config.js";
 
 const TMP_ROOT = "/data/tmp";
@@ -290,24 +291,29 @@ export async function runConverter(db: Database, outputDir: string = getConvertO
   _convertRunning = true;
   let completed = 0;
   let failed = 0;
+  const concurrency = getConvertConcurrency();
   try {
-    // Reclaim jobs orphaned by a restart/crash mid-transcode (serial worker, so
-    // nothing is legitimately 'processing' when a fresh run starts).
+    // Reclaim jobs orphaned by a restart/crash mid-transcode (nothing is
+    // legitimately 'processing' when a fresh run starts).
     db.prepare(`UPDATE conversion_jobs SET status = 'pending', progress = 0 WHERE status = 'processing'`).run();
 
     const total = (db.query<{ c: number }, []>(`SELECT COUNT(*) AS c FROM conversion_jobs WHERE status = 'pending'`).get())?.c ?? 0;
     convertEmitter.emit("progress", { type: "start", total } as ConvertProgressEvent);
+    console.log(`[convert] Draining ${total} pending job(s) at concurrency ${concurrency}`);
 
-    for (;;) {
+    // Atomically claim the next pending job (synchronous, so safe across the pool).
+    const claim = (): JobRow | null => {
       const job = db.query<JobRow, []>(
         `SELECT id, source_path, source_kind, metadata_json FROM conversion_jobs
          WHERE status = 'pending' ORDER BY id LIMIT 1`
       ).get();
-      if (!job) break;
-
+      if (!job) return null;
       db.prepare(`UPDATE conversion_jobs SET status = 'processing', progress = 0, error = NULL, updated_at = datetime('now') WHERE id = ?`).run(job.id);
-      convertEmitter.emit("progress", { type: "job", id: job.id, source: job.source_path, status: "processing", progress: 0 } as ConvertProgressEvent);
+      return job;
+    };
 
+    const processOne = async (job: JobRow): Promise<void> => {
+      convertEmitter.emit("progress", { type: "job", id: job.id, source: job.source_path, status: "processing", progress: 0 } as ConvertProgressEvent);
       let lastPct = 0;
       const onProgress = (frac: number) => {
         const pct = Math.floor(frac * 100);
@@ -317,7 +323,6 @@ export async function runConverter(db: Database, outputDir: string = getConvertO
           convertEmitter.emit("progress", { type: "job", id: job.id, source: job.source_path, status: "processing", progress: frac } as ConvertProgressEvent);
         }
       };
-
       try {
         const { outputPath, chapterSource, resolved } = await processJob(db, job, outputDir, onProgress);
         db.prepare(
@@ -332,6 +337,22 @@ export async function runConverter(db: Database, outputDir: string = getConvertO
         failed++;
         convertEmitter.emit("progress", { type: "job", id: job.id, source: job.source_path, status: "failed", progress: 0 } as ConvertProgressEvent);
       }
+    };
+
+    // Concurrency pool: keep up to `concurrency` conversions in flight.
+    const active = new Set<Promise<void>>();
+    const fill = () => {
+      while (active.size < concurrency) {
+        const job = claim();
+        if (!job) break;
+        const p = processOne(job).finally(() => active.delete(p));
+        active.add(p);
+      }
+    };
+    fill();
+    while (active.size > 0) {
+      await Promise.race(active);
+      fill();
     }
   } finally {
     _convertRunning = false;

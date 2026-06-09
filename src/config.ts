@@ -48,6 +48,12 @@ export function getConvertChannels(): number {
   return parseInt(process.env["CONVERT_CHANNELS"] ?? "1", 10);
 }
 
+/** How many conversions run in parallel (each ffmpeg is ~single-threaded). */
+export function getConvertConcurrency(): number {
+  const n = parseInt(process.env["CONVERT_CONCURRENCY"] ?? "2", 10);
+  return Number.isFinite(n) && n > 0 ? n : 2;
+}
+
 /** A folder with at most this many audio files is treated as "monolithic" (derive chapters). */
 export function getMonolithicFileThreshold(): number {
   return parseInt(process.env["CONVERT_MONO_FILES"] ?? "2", 10);
