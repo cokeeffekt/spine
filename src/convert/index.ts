@@ -196,13 +196,16 @@ async function processJob(
   title = pick(overrides.title, apiTitle, title);
   author = pick(overrides.author, apiAuthor, author);
 
-  // --- Cover: local existing file wins; otherwise download the Audnexus image ---
+  // --- Cover: prefer the Audnexus image (usually much higher-res than embedded/folder art);
+  //     fall back to a local embedded/folder cover, then a remote cover URL. ---
   let coverPath: string | null = null;
-  if (book.cover_path && !/^https?:\/\//i.test(book.cover_path) && fs.existsSync(book.cover_path)) {
-    coverPath = book.cover_path;
-  } else if (coverImageUrl) {
+  if (coverImageUrl) {
     coverPath = await downloadCover(coverImageUrl, `src-${book.id}`);
-  } else if (book.cover_path && /^https?:\/\//i.test(book.cover_path)) {
+  }
+  if (!coverPath && book.cover_path && !/^https?:\/\//i.test(book.cover_path) && fs.existsSync(book.cover_path)) {
+    coverPath = book.cover_path;
+  }
+  if (!coverPath && book.cover_path && /^https?:\/\//i.test(book.cover_path)) {
     coverPath = await downloadCover(book.cover_path, `src-${book.id}`);
   }
 
@@ -442,8 +445,9 @@ export async function reEnrichConvertedBooks(db: Database, outputDir: string = g
       updated++;
     }
 
-    const hasLocalCover = book.cover_path && !/^https?:\/\//i.test(book.cover_path) && fs.existsSync(book.cover_path);
-    if (!hasLocalCover && data?.image) {
+    // Prefer the Audnexus image (usually higher-res than embedded art); keep the existing
+    // cover only if the download fails.
+    if (data?.image) {
       const local = await downloadCover(data.image, book.id);
       if (local) db.prepare(`UPDATE books SET cover_path = ? WHERE id = ?`).run(local, book.id);
     }
