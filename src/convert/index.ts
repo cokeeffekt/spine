@@ -5,7 +5,7 @@ import * as path from "path";
 import type { NormalizedChapter } from "../types.js";
 import { parseFolderName } from "./folder-name.js";
 import { searchAudibleAsin } from "./audible.js";
-import { fetchAudnexusBook, audnexusGenre, audnexusYear, audnexusSeries } from "../scanner/enrichment.js";
+import { fetchAudnexusBook, audnexusGenre, audnexusYear, audnexusSeries, audnexusTitle, audnexusAuthor } from "../scanner/enrichment.js";
 import { downloadCover } from "../scanner/cover.js";
 import { deriveChapters } from "./chapters.js";
 import { buildFfmetadata } from "./ffmetadata.js";
@@ -168,10 +168,14 @@ async function processJob(
   const deNumberedTitle = parsed.title.replace(/^\s*\d+\s*[.)\-]\s*/, "").trim();
   const searchTitle = job.source_kind === "mp3folder" ? (deNumberedTitle || title) : (title || deNumberedTitle);
   if (!asin) asin = await searchAudibleAsin(searchTitle, author, { durationSec: book.duration_sec ?? undefined });
+  let apiTitle: string | null = null;
+  let apiAuthor: string | null = null;
   if (asin) {
     const data = await fetchAudnexusBook(asin);
     if (data) {
       const series = audnexusSeries(data);
+      apiTitle = audnexusTitle(data);
+      apiAuthor = audnexusAuthor(data);
       description = description ?? data.description ?? null;
       narrator = narrator ?? data.narrators?.[0]?.name ?? null;
       series_title = series_title ?? series?.name ?? null;
@@ -183,6 +187,12 @@ async function processJob(
       if (data.image) coverImageUrl = data.image;
     }
   }
+
+  // Prefer the canonical Audnexus title/author over folder-name parsing (which keeps junk like
+  // "Christine (read by Holter Graham)"). Admin overrides still win; folder values are the
+  // fallback when there's no API match.
+  title = pick(overrides.title, apiTitle, title);
+  author = pick(overrides.author, apiAuthor, author);
 
   // --- Cover: local existing file wins; otherwise download the Audnexus image ---
   let coverPath: string | null = null;
@@ -364,13 +374,15 @@ export async function runConverter(db: Database, outputDir: string = getConvertO
 
 /**
  * Re-resolve metadata for already-converted books using the improved (runtime-aware)
- * Audible match, and OVERWRITE the Audnexus-sourced fields (series, narrator, year,
- * genre, language, publisher, description, asin) + a missing cover. Title/author are
- * left as-is. Used to backfill books converted before a matching improvement.
+ * Audible match, and OVERWRITE the Audnexus-sourced fields (title, author, series, narrator,
+ * year, genre, language, publisher, description, asin) + a missing cover. Admin overrides
+ * (conversion_jobs.metadata_json) still win. Used to backfill books converted before a
+ * matching/metadata improvement — updates the DB row only (the embedded m4b tags keep their
+ * original values until the book is reconverted, but the library reads the DB).
  */
 export async function reEnrichConvertedBooks(db: Database, outputDir: string = getConvertOutputDir()): Promise<{ updated: number; checked: number }> {
-  const jobs = db.query<{ source_path: string; output_path: string }, []>(
-    `SELECT source_path, output_path FROM conversion_jobs WHERE status = 'completed' AND output_path IS NOT NULL`
+  const jobs = db.query<{ source_path: string; output_path: string; metadata_json: string | null }, []>(
+    `SELECT source_path, output_path, metadata_json FROM conversion_jobs WHERE status = 'completed' AND output_path IS NOT NULL`
   ).all();
   let updated = 0;
   let checked = 0;
@@ -393,11 +405,15 @@ export async function reEnrichConvertedBooks(db: Database, outputDir: string = g
     if (!data) continue;
 
     const series = audnexusSeries(data);
+    const overrides = j.metadata_json ? safeParse(j.metadata_json) : {};
     const sets: string[] = [];
     const params: unknown[] = [];
     const set = (col: string, val: unknown) => {
       if (val !== null && val !== undefined && String(val).trim()) { sets.push(`${col} = ?`); params.push(String(val).trim()); }
     };
+    // Canonical title/author from the API (admin overrides win); folder-derived names otherwise.
+    set("title", pick(overrides.title, audnexusTitle(data)));
+    set("author", pick(overrides.author, audnexusAuthor(data)));
     set("asin", asin);
     set("series_title", series?.name);
     set("series_position", series?.position);

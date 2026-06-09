@@ -124,6 +124,23 @@ describe("fetchAudnexusBook", () => {
   });
 });
 
+describe("audnexusTitle / audnexusAuthor", () => {
+  it("returns the trimmed title and first author", async () => {
+    const { audnexusTitle, audnexusAuthor } = await import("./enrichment.js");
+    const data = { title: "  Christine  ", authors: [{ name: " Stephen King " }, { name: "X" }] };
+    expect(audnexusTitle(data)).toBe("Christine");
+    expect(audnexusAuthor(data)).toBe("Stephen King");
+  });
+
+  it("returns null when title/authors are missing or empty", async () => {
+    const { audnexusTitle, audnexusAuthor } = await import("./enrichment.js");
+    expect(audnexusTitle({})).toBeNull();
+    expect(audnexusTitle({ title: "   " })).toBeNull();
+    expect(audnexusAuthor({})).toBeNull();
+    expect(audnexusAuthor({ authors: [] })).toBeNull();
+  });
+});
+
 describe("applyEnrichment", () => {
   it("fills null description from Audnexus data", async () => {
     const { applyEnrichment } = await import("./enrichment.js");

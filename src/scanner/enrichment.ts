@@ -7,6 +7,9 @@ export interface AudnexusSeries {
 }
 
 export interface AudnexusBook {
+  title?: string
+  subtitle?: string
+  authors?: { name: string }[]
   description?: string
   image?: string
   narrators?: { name: string }[]
@@ -23,6 +26,18 @@ export interface AudnexusBook {
 /** The primary series for a book (handles the real `seriesPrimary` key and the legacy `series`). */
 export function audnexusSeries(data: AudnexusBook): AudnexusSeries | null {
   return data.seriesPrimary ?? data.series ?? null
+}
+
+/** The canonical book title from Audnexus (without the subtitle), trimmed, or null. */
+export function audnexusTitle(data: AudnexusBook): string | null {
+  const t = data.title?.trim()
+  return t ? t : null
+}
+
+/** The first author name from Audnexus, trimmed, or null. */
+export function audnexusAuthor(data: AudnexusBook): string | null {
+  const a = data.authors?.[0]?.name?.trim()
+  return a ? a : null
 }
 
 /** Comma-joined genre names (type='genre' preferred), or null. */
