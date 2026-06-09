@@ -408,12 +408,14 @@ export async function reEnrichConvertedBooks(db: Database, outputDir: string = g
     const deNum = parseFolderName(base).title.replace(/^\s*\d+\s*[.)\-]\s*/, "").trim();
     const searchTitle = deNum || book.title;
 
-    // Use the SOURCE book's author (grandparent dir — reliable) for the search and as a
-    // fallback, since the converted row's author may be a junk hyphen-split of the title.
-    const sourceBook = db.query<{ author: string | null }, [string]>(
-      `SELECT author FROM books WHERE file_path = ?`
+    // Use the SOURCE book's author/title (grandparent dir + folder name — reliable) for the
+    // search and as fallbacks, since the converted row may carry a junk hyphen-split author or
+    // a wrong title from a bad earlier API match.
+    const sourceBook = db.query<{ author: string | null; title: string | null }, [string]>(
+      `SELECT author, title FROM books WHERE file_path = ?`
     ).get(j.source_path);
     const sourceAuthor = sourceBook?.author ?? null;
+    const sourceTitle = deNum || sourceBook?.title || null;
 
     const asin = await searchAudibleAsin(searchTitle, sourceAuthor ?? book.author, { durationSec: book.duration_sec ?? undefined });
     const data = asin ? await fetchAudnexusBook(asin) : null;
@@ -425,11 +427,11 @@ export async function reEnrichConvertedBooks(db: Database, outputDir: string = g
     const set = (col: string, val: unknown) => {
       if (val !== null && val !== undefined && String(val).trim()) { sets.push(`${col} = ?`); params.push(String(val).trim()); }
     };
-    // Author can always be corrected from the reliable source author even with no API match.
-    // Title and the rest only change when we have API data. Admin overrides win.
+    // Title/author are always corrected — API when matched, else the reliable source values
+    // (this also undoes a wrong title from a previous bad match). Admin overrides win.
+    set("title", pick(overrides.title, data ? audnexusTitle(data) : null, sourceTitle));
     set("author", pick(overrides.author, data ? audnexusAuthor(data) : null, sourceAuthor));
     if (data) {
-      set("title", pick(overrides.title, audnexusTitle(data)));
       set("asin", asin);
       set("series_title", series?.name);
       set("series_position", series?.position);
