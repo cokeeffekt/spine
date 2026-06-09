@@ -20,28 +20,7 @@ import {
   getFixedChapterSec,
   isConvertEnabled,
   getConvertConcurrency,
-  getLibraryRoots,
 } from "../config.js";
-
-/**
- * The author folder for a source path: the first path segment under its library root
- * (libraries are laid out /<root>/<Author>/<book…>). More reliable than the immediate
- * grandparent dir, which for nested layouts (anthology novellas, alternate-version folders)
- * is the collection folder, not the author. Returns null when the book sits directly under a
- * root (no author folder).
- */
-export function libraryAuthorFromPath(sourcePath: string, roots: string[] = getLibraryRoots()): string | null {
-  for (const root of roots) {
-    const r = root.endsWith("/") ? root : root + "/";
-    if (sourcePath.startsWith(r)) {
-      const rest = sourcePath.slice(r.length);
-      if (!rest.includes("/")) return null; // directly under the root — no author folder
-      const seg = rest.split("/")[0]?.trim();
-      return seg || null;
-    }
-  }
-  return null;
-}
 
 const TMP_ROOT = "/data/tmp";
 
@@ -162,17 +141,14 @@ async function processJob(
 
   let title: string | null;
   let author: string | null;
-  // The library's author folder (first segment under the root) is the most reliable author
-  // signal — correct for nested layouts where the grandparent dir is a collection folder.
-  const libraryAuthor = libraryAuthorFromPath(job.source_path);
   if (job.source_kind === "mp3folder") {
     title = pick(overrides.title, looksLikeJunkTitle(book.title) ? null : book.title, parsed.title, book.title);
-    // Prefer the author folder over the scanned grandparent author, then a hyphen-split of the
-    // book-folder name (e.g. "Galactic Pot-Healer" -> "Galactic Pot").
-    author = pick(overrides.author, libraryAuthor, book.author, parsed.author);
+    // The scanned author (grandparent dir in an /Author/Title layout) is more reliable than a
+    // hyphen-split of the book-folder name (e.g. "Galactic Pot-Healer" -> "Galactic Pot").
+    author = pick(overrides.author, book.author, parsed.author);
   } else {
     title = pick(overrides.title, book.title, parsed.title);
-    author = pick(overrides.author, libraryAuthor, book.author, parsed.author);
+    author = pick(overrides.author, book.author, parsed.author);
   }
 
   // --- Fill the rest from the scanned book, then admin overrides ---
@@ -438,7 +414,7 @@ export async function reEnrichConvertedBooks(db: Database, outputDir: string = g
     const sourceBook = db.query<{ author: string | null; title: string | null }, [string]>(
       `SELECT author, title FROM books WHERE file_path = ?`
     ).get(j.source_path);
-    const sourceAuthor = libraryAuthorFromPath(j.source_path) ?? sourceBook?.author ?? null;
+    const sourceAuthor = sourceBook?.author ?? null;
     const sourceTitle = deNum || sourceBook?.title || null;
 
     const asin = await searchAudibleAsin(searchTitle, sourceAuthor ?? book.author, { durationSec: book.duration_sec ?? undefined });
