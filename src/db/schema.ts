@@ -69,6 +69,24 @@ export function initializeDatabase(db: Database): void {
     );
 
     CREATE INDEX IF NOT EXISTS idx_progress_user_id ON progress(user_id);
+
+    CREATE TABLE IF NOT EXISTS conversion_jobs (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      source_path    TEXT    NOT NULL UNIQUE,   -- books.file_path of the source (folder or .m4b)
+      source_kind    TEXT    NOT NULL,          -- 'mp3folder' | 'm4b'
+      output_path    TEXT,                      -- /converted/<author>/<title>.m4b
+      status         TEXT    NOT NULL DEFAULT 'pending'
+                     CHECK(status IN ('pending','processing','completed','failed','skipped')),
+      progress       REAL    NOT NULL DEFAULT 0,  -- 0..1 transcode fraction
+      chapter_source TEXT,                       -- embedded|perfile|audnexus|silence|fixed
+      asin           TEXT,
+      metadata_json  TEXT,                       -- resolved metadata + admin edits
+      error          TEXT,
+      created_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+      updated_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_conversion_jobs_status ON conversion_jobs(status);
   `);
 
   // Migration: add last_login_at column to existing databases

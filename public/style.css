@@ -1365,3 +1365,93 @@ body {
     width: 100px;
   }
 }
+
+/* ───── Conversions tab ───── */
+.conv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.conv-item {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background: var(--color-secondary);
+}
+.conv-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.conv-title {
+  font-weight: 600;
+  color: var(--color-text);
+}
+.conv-sub {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin-top: 0.15rem;
+}
+.conv-badge {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--color-border);
+  color: var(--color-text);
+}
+.conv-chapsrc { text-transform: none; letter-spacing: 0; opacity: 0.85; }
+.conv-pending    { background: #475569; }
+.conv-processing { background: #2563eb; }
+.conv-completed  { background: #16a34a; }
+.conv-failed     { background: var(--color-accent); }
+.conv-skipped    { background: #64748b; }
+.conv-error {
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--color-error);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.conv-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 0.6rem;
+  flex-wrap: wrap;
+}
+.admin-link-btn {
+  background: none;
+  border: none;
+  color: var(--color-accent);
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.85rem;
+}
+.admin-link-btn:hover { text-decoration: underline; }
+.conv-edit {
+  margin-top: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.5rem 0.75rem;
+}
+.conv-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+.conv-field-wide { grid-column: 1 / -1; }
+.conv-field input,
+.conv-field textarea {
+  background: var(--color-placeholder-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  color: var(--color-text);
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  font-size: 0.85rem;
+}

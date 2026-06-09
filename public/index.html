@@ -586,9 +586,80 @@
              } catch {
                this.resetState = { ...this.resetState, [user.id]: { ...state, saving: false, error: 'Reset failed. Try again.' } }
              }
+           },
+           // ─── Conversions tab ───
+           conversions: [],
+           convLoading: false,
+           convError: '',
+           _convEs: null,
+           _convReloadTimer: null,
+           editState: {},
+           async loadConversions() {
+             this.convLoading = true
+             try {
+               const res = await fetch('/api/conversions')
+               if (res.ok) this.conversions = await res.json()
+             } catch { this.convError = 'Failed to load conversions.' }
+             finally { this.convLoading = false }
+           },
+           _scheduleConvReload() {
+             if (this._convReloadTimer) clearTimeout(this._convReloadTimer)
+             this._convReloadTimer = setTimeout(() => { this.loadConversions() }, 800)
+           },
+           subscribeConversions() {
+             if (this._convEs) return
+             const es = new EventSource('/api/conversions/progress')
+             this._convEs = es
+             es.addEventListener('start', () => { this._scheduleConvReload() })
+             es.addEventListener('job', (e) => {
+               const d = JSON.parse(e.data)
+               const job = this.conversions.find(j => j.id === d.id)
+               if (job) { job.status = d.status; job.progress = d.progress }
+               if (d.status === 'completed' || d.status === 'failed') this._scheduleConvReload()
+             })
+             es.addEventListener('done', () => {
+               this._scheduleConvReload()
+               $store.library.loadBooks()
+             })
+           },
+           convMeta(job) { try { return job.metadata_json ? JSON.parse(job.metadata_json) : {} } catch { return {} } },
+           convPercent(job) { return Math.round((job.progress || 0) * 100) },
+           convDisplayTitle(job) { return this.convMeta(job).title || job.source_title || job.source_path.split('/').pop() },
+           startEdit(job) {
+             const m = this.convMeta(job)
+             this.editState = { ...this.editState, [job.id]: { open: true, saving: false, error: '', form: {
+               title: m.title || job.source_title || '',
+               author: m.author || job.source_author || '',
+               narrator: m.narrator || '',
+               series_title: m.series_title || '',
+               series_position: m.series_position || '',
+               year: m.year || '',
+               genre: m.genre || '',
+               language: m.language || '',
+               publisher: m.publisher || '',
+               asin: m.asin || job.asin || '',
+               description: m.description || ''
+             } } }
+           },
+           cancelEdit(job) { this.editState = { ...this.editState, [job.id]: null } },
+           async saveEdit(job) {
+             const st = this.editState[job.id]; if (!st) return
+             this.editState = { ...this.editState, [job.id]: { ...st, saving: true, error: '' } }
+             try {
+               const res = await fetch('/api/conversions/' + job.id, {
+                 method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify(st.form)
+               })
+               if (res.ok) { this.editState = { ...this.editState, [job.id]: null }; this.loadConversions() }
+               else this.editState = { ...this.editState, [job.id]: { ...st, saving: false, error: 'Save failed.' } }
+             } catch { this.editState = { ...this.editState, [job.id]: { ...st, saving: false, error: 'Save failed.' } } }
+           },
+           async retryJob(job) {
+             const res = await fetch('/api/conversions/' + job.id + '/retry', { method: 'POST' })
+             if (res.ok) this.loadConversions()
            }
          }"
-         x-init="loadUsers()">
+         x-init="loadUsers(); loadConversions(); subscribeConversions()">
 
       <!-- Tab bar (per D-01) -->
       <div class="admin-tabs">
@@ -596,6 +667,8 @@
                 @click="activeTab = 'users'" type="button">Users</button>
         <button class="admin-tab-btn" :class="{ 'admin-tab-active': activeTab === 'library' }"
                 @click="activeTab = 'library'" type="button">Library</button>
+        <button class="admin-tab-btn" :class="{ 'admin-tab-active': activeTab === 'conversions' }"
+                @click="activeTab = 'conversions'" type="button">Conversions</button>
       </div>
 
       <!-- Users tab panel — x-show keeps DOM alive (not x-if, per Pitfall 6 / Phase 7 lesson) -->
@@ -768,6 +841,69 @@
           <span x-text="(scanSummary?.notEnriched ?? 0) + ' not enriched'"></span>
         </div>
       </div><!-- end Library tab panel -->
+
+      <!-- Conversions tab panel -->
+      <div x-show="activeTab === 'conversions'">
+        <h1 class="admin-heading">Conversions</h1>
+        <p class="admin-status" x-show="convError" x-text="convError" role="alert"></p>
+
+        <div style="display:flex; gap:.5rem; align-items:center; margin-bottom:.75rem;">
+          <button class="btn-primary admin-scan-btn" @click="loadConversions()" :disabled="convLoading" type="button">Refresh</button>
+          <span class="admin-scan-current" x-text="conversions.length + ' job(s)'"></span>
+        </div>
+
+        <p class="admin-scan-current" x-show="conversions.length === 0">
+          No conversion jobs yet — they are created automatically during a library scan.
+        </p>
+
+        <div class="conv-list">
+          <template x-for="job in conversions" :key="job.id">
+            <div class="conv-item">
+              <div class="conv-row">
+                <span class="conv-title" x-text="convDisplayTitle(job)"></span>
+                <span class="conv-badge" :class="'conv-' + job.status" x-text="job.status"></span>
+                <span class="conv-badge conv-chapsrc" x-show="job.chapter_source" x-text="'chapters: ' + job.chapter_source"></span>
+              </div>
+              <div class="conv-sub" x-text="(convMeta(job).author || job.source_author || '')"></div>
+
+              <div class="admin-scan-progress" x-show="job.status === 'processing'">
+                <div class="admin-scan-progress-bar">
+                  <div class="admin-scan-progress-fill" :style="'width:' + convPercent(job) + '%'"></div>
+                </div>
+                <div class="admin-scan-progress-text"><span x-text="convPercent(job)"></span>%</div>
+              </div>
+
+              <div class="conv-error" x-show="job.status === 'failed' && job.error" x-text="job.error"></div>
+
+              <div class="conv-actions" x-show="!editState[job.id]?.open">
+                <button class="admin-link-btn" @click="startEdit(job)" type="button">Edit metadata</button>
+                <button class="admin-link-btn" @click="retryJob(job)" type="button" x-show="job.status === 'failed'">Retry</button>
+              </div>
+
+              <!-- Inline metadata edit form -->
+              <div class="conv-edit" x-show="editState[job.id]?.open" x-transition>
+                <template x-for="f in ['title','author','narrator','series_title','series_position','year','genre','language','publisher','asin']" :key="f">
+                  <label class="conv-field">
+                    <span x-text="f.replace('_',' ')"></span>
+                    <input type="text" x-model="editState[job.id].form[f]">
+                  </label>
+                </template>
+                <label class="conv-field conv-field-wide">
+                  <span>description</span>
+                  <textarea rows="3" x-model="editState[job.id].form.description"></textarea>
+                </label>
+                <div class="conv-error" x-show="editState[job.id]?.error" x-text="editState[job.id]?.error"></div>
+                <div class="conv-actions">
+                  <button class="btn-primary admin-scan-btn" @click="saveEdit(job)"
+                          :disabled="editState[job.id]?.saving" type="button"
+                          x-text="editState[job.id]?.saving ? 'Saving…' : 'Save & re-convert'"></button>
+                  <button class="admin-link-btn" @click="cancelEdit(job)" type="button">Cancel</button>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div><!-- end Conversions tab panel -->
 
     </div>
     </template>

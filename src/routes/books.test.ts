@@ -166,6 +166,37 @@ describe("GET /api/books", () => {
     expect(books[0].title).toBe('Another Story'); // 'A' < 'T'
     expect(books[1].title).toBe('The Great Book');
   });
+
+  it("excludes source books that have a completed conversion (superseded)", async () => {
+    // book2 has been materialized into a converted .m4b
+    db.query(
+      `INSERT INTO conversion_jobs (source_path, source_kind, status, output_path)
+       VALUES ('/books/book2.m4b', 'm4b', 'completed', '/converted/Author Two/Another Story.m4b')`
+    ).run();
+
+    const app = await makeBooksApp();
+    const res = await app.request('/api/books', {
+      headers: { Cookie: `session=${sessionToken}` }
+    });
+    const books = await res.json() as any[];
+    const titles = books.map((b: any) => b.title);
+    expect(titles).not.toContain('Another Story'); // superseded source hidden
+    expect(titles).toContain('The Great Book');     // not superseded → visible
+  });
+
+  it("does NOT hide a source whose conversion is still pending/processing", async () => {
+    db.query(
+      `INSERT INTO conversion_jobs (source_path, source_kind, status)
+       VALUES ('/books/book2.m4b', 'm4b', 'processing')`
+    ).run();
+
+    const app = await makeBooksApp();
+    const res = await app.request('/api/books', {
+      headers: { Cookie: `session=${sessionToken}` }
+    });
+    const books = await res.json() as any[];
+    expect(books.map((b: any) => b.title)).toContain('Another Story');
+  });
 });
 
 describe("GET /api/books/:id", () => {

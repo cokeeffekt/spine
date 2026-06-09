@@ -181,6 +181,29 @@ describe("applyEnrichment", () => {
     expect(book?.cover_path).toBe("https://example.com/cover.jpg");
   });
 
+  it("fills null year, genre, language, publisher from Audnexus", async () => {
+    const { applyEnrichment } = await import("./enrichment.js");
+
+    const result = applyEnrichment(db, 1, {
+      releaseDate: "2005-07-01",
+      genres: [
+        { name: "Science Fiction & Fantasy", type: "genre" },
+        { name: "Space Opera", type: "tag" },
+      ],
+      language: "english",
+      publisherName: "Recorded Books",
+    });
+
+    expect(result).toBe(true);
+    const book = db.query<{ year: string | null; genre: string | null; language: string | null; publisher: string | null }, [number]>(
+      "SELECT year, genre, language, publisher FROM books WHERE id = ?"
+    ).get(1);
+    expect(book?.year).toBe("2005");
+    expect(book?.genre).toBe("Science Fiction & Fantasy"); // only type='genre' entries
+    expect(book?.language).toBe("english");
+    expect(book?.publisher).toBe("Recorded Books");
+  });
+
   it("does NOT overwrite existing non-null description (D-11)", async () => {
     const { applyEnrichment } = await import("./enrichment.js");
 

@@ -196,6 +196,44 @@ describe("scanLibrary", () => {
     expect(callCount).toBe(2);
   });
 
+  test("scans multiple roots and unions them for missing-marking", async () => {
+    const rootA = makeTmpDir();
+    const rootB = makeTmpDir();
+    try {
+      touch(path.join(rootA, "a.m4b"));
+      touch(path.join(rootB, "b.m4b"));
+
+      const fakeProbeFn = async (filePath: string): Promise<NormalizedMetadata> =>
+        makeMetadata({ title: path.basename(filePath, ".m4b") });
+
+      await scanLibrary(db, [rootA, rootB], fakeProbeFn);
+
+      const books = db.query("SELECT title, is_missing FROM books ORDER BY title").all() as Array<{ title: string; is_missing: number }>;
+      expect(books.map((b) => b.title)).toEqual(["a", "b"]);
+      // A book present in either root must not be flagged missing.
+      expect(books.every((b) => b.is_missing === 0)).toBe(true);
+
+      // Re-scan with both roots — nothing should become missing.
+      await scanLibrary(db, [rootA, rootB], fakeProbeFn);
+      const stillPresent = db.query("SELECT COUNT(*) AS c FROM books WHERE is_missing = 1").get() as { c: number };
+      expect(stillPresent.c).toBe(0);
+    } finally {
+      fs.rmSync(rootA, { recursive: true, force: true });
+      fs.rmSync(rootB, { recursive: true, force: true });
+    }
+  });
+
+  test("does not mass-mark missing when every root fails to walk", async () => {
+    touch(path.join(tmpDir, "book1.m4b"));
+    const fakeProbeFn = async (): Promise<NormalizedMetadata> => makeMetadata();
+    await scanLibrary(db, tmpDir, fakeProbeFn);
+    expect((db.query("SELECT COUNT(*) AS c FROM books WHERE is_missing = 0").get() as { c: number }).c).toBe(1);
+
+    // A non-existent root → walkLibrary throws for it; with no walkable root we abort.
+    await scanLibrary(db, "/nonexistent/spine/root/xyz", fakeProbeFn);
+    expect((db.query("SELECT COUNT(*) AS c FROM books WHERE is_missing = 1").get() as { c: number }).c).toBe(0);
+  });
+
   test("incremental scan skips unchanged files (D-02)", async () => {
     const book1 = path.join(tmpDir, "book1.m4b");
     touch(book1);

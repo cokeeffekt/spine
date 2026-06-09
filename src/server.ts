@@ -3,6 +3,7 @@ import { serveStatic } from "hono/bun";
 import { getDatabase } from "./db/index.js";
 import { scanLibrary } from "./scanner/index.js";
 import { startWatcher } from "./scanner/watcher.js";
+import { getLibraryRoots } from "./config.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { bootstrapAdmin } from "./db/bootstrap.js";
 import authRoutes from "./routes/auth.js";
@@ -12,6 +13,7 @@ import audioRoutes from "./routes/audio.js";
 import coverRoutes from "./routes/cover.js";
 import scanRoutes from "./routes/scan.js";
 import progressRoutes from "./routes/progress.js";
+import convertRoutes from "./routes/convert.js";
 
 export const app = new Hono();
 
@@ -33,6 +35,7 @@ app.route("/api", audioRoutes);
 app.route("/api", coverRoutes);
 app.route("/api", scanRoutes);
 app.route("/api", progressRoutes);
+app.route("/api", convertRoutes);
 
 // Static files — must come AFTER all API/auth routes (per D-20, Pitfall 2)
 app.use("/*", serveStatic({ root: "./public" }));
@@ -41,7 +44,7 @@ app.get("/*", serveStatic({ path: "./public/index.html" }));
 // Only start the server when not in test mode
 if (process.env["NODE_ENV"] !== "test") {
   const port = parseInt(process.env["PORT"] ?? "3000", 10);
-  const libraryRoot = process.env["LIBRARY_ROOT"] ?? "/books";
+  const libraryRoots = getLibraryRoots();
 
   const db = getDatabase();
 
@@ -56,9 +59,9 @@ if (process.env["NODE_ENV"] !== "test") {
     // Bootstrap admin account from env vars on empty DB (AUTH-06)
     await bootstrapAdmin(db);
 
-    console.log(`[server] Starting initial library scan...`);
+    console.log(`[server] Starting initial library scan (roots: ${libraryRoots.join(", ")})...`);
     try {
-      await scanLibrary(db, libraryRoot);
+      await scanLibrary(db, libraryRoots);
       console.log(`[server] Initial library scan complete`);
     } catch (err) {
       console.warn(
@@ -66,7 +69,7 @@ if (process.env["NODE_ENV"] !== "test") {
       );
     }
 
-    startWatcher(db, libraryRoot);
+    startWatcher(db, libraryRoots);
     const intervalMs = parseInt(process.env["SCAN_INTERVAL_MS"] ?? "300000", 10);
     console.log(`Library watcher started (interval: ${intervalMs}ms)`);
   })();

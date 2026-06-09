@@ -4,6 +4,7 @@ import type { AuthVariables } from '../middleware/auth.js'
 import { getDatabase } from '../db/index.js'
 import { isScanRunning, runScan, scanEmitter } from '../scanner/index.js'
 import type { ScanProgressEvent } from '../scanner/index.js'
+import { getLibraryRoots } from '../config.js'
 
 const scan = new Hono<{ Variables: AuthVariables }>()
 
@@ -24,11 +25,11 @@ scan.post('/scan', async (c) => {
     const result = db.prepare("UPDATE books SET file_mtime = 0").run()
     console.log(`[scan-route] Force rescan — reset file_mtime for ${result.changes} books`)
   }
-  const libraryRoot = process.env['LIBRARY_ROOT'] ?? '/books'
-  console.log(`[scan-route] Starting runScan, libraryRoot=${libraryRoot}`)
+  const libraryRoots = getLibraryRoots()
+  console.log(`[scan-route] Starting runScan, libraryRoots=${libraryRoots.join(', ')}`)
   console.log(`[scan-route] scanEmitter listener counts BEFORE runScan: progress=${scanEmitter.listenerCount('progress')}, done=${scanEmitter.listenerCount('done')}`)
   // Fire-and-forget — SSE stream carries progress (anti-pattern: do NOT await)
-  runScan(db, libraryRoot).catch((err) => {
+  runScan(db, libraryRoots).catch((err) => {
     console.error('[scan-route] Manual scan failed:', err)
   })
   console.log(`[scan-route] runScan fired (async), returning 200`)

@@ -3,13 +3,15 @@ import * as path from "path";
 import { Database } from "bun:sqlite";
 import { EventEmitter } from 'events'
 import { probeFile, normalizeMetadata } from "./probe.js";
-import { extractCoverArt, resolveCoverPath } from "./cover.js";
+import { extractCoverArt, resolveCoverPath, downloadCover } from "./cover.js";
 import { walkLibrary } from "./walk.js";
 import type { ScanItem } from "./walk.js";
 import { applyFallbackMetadata } from "./fallback.js";
 import { fetchAudnexusBook, applyEnrichment } from "./enrichment.js";
 import { parseTrackNumber, sortTracks, parseDiscNumber } from "./mp3-sort.js";
 import type { NormalizedMetadata } from "../types.js";
+import { enqueueUnmaterialized, runConverter, isConvertRunning } from "../convert/index.js";
+import { isConvertEnabled, getConvertOutputDir } from "../config.js";
 
 /**
  * Type for an injectable probe function.
@@ -579,24 +581,37 @@ export async function scanFolder(
  */
 export async function scanLibrary(
   db: Database,
-  libraryRoot: string,
+  roots: string | string[],
   probeFn: ProbeFn = defaultProbeFn,
   onProgress?: ProgressCallback
 ): Promise<void> {
-  let items: ScanItem[];
-  try {
-    items = walkLibrary(libraryRoot);
-  } catch (err) {
-    console.warn(
-      `[scanner] Could not walk library "${libraryRoot}": ${(err as Error).message}. Skipping scan.`
-    );
+  // Support multiple library roots (e.g. read-only /books + writable /converted).
+  // Each root is walked independently; items are unioned for the missing-books query.
+  const rootList = (Array.isArray(roots) ? roots : [roots]).filter(Boolean);
+
+  const items: ScanItem[] = [];
+  let anyWalkOk = false;
+  for (const root of rootList) {
+    try {
+      items.push(...walkLibrary(root));
+      anyWalkOk = true;
+    } catch (err) {
+      console.warn(
+        `[scanner] Could not walk library "${root}": ${(err as Error).message}. Skipping this root.`
+      );
+    }
+  }
+
+  // Safety: if every root failed to walk, abort rather than mass-marking books missing.
+  if (!anyWalkOk) {
+    console.warn(`[scanner] No library root could be walked — skipping scan to avoid false missing flags.`);
     return;
   }
 
-  // Build allPaths for missing-books query
+  // Build allPaths for missing-books query (union across all roots)
   const allPaths = items.map((item) => (item.kind === "file" ? item.path : item.folderPath));
 
-  console.log(`[scanner] Scanning ${items.length} items in ${libraryRoot}`);
+  console.log(`[scanner] Scanning ${items.length} items across ${rootList.length} root(s): ${rootList.join(", ")}`);
 
   // Emit start event
   onProgress?.({ type: 'start', total: items.length })
@@ -667,6 +682,7 @@ export async function scanLibrary(
   const enrichCandidates = db.query<{ id: number; asin: string }, []>(
     `SELECT id, asin FROM books WHERE asin IS NOT NULL AND (
       description IS NULL OR narrator IS NULL OR series_title IS NULL OR cover_path IS NULL
+      OR year IS NULL OR genre IS NULL OR language IS NULL OR publisher IS NULL
     )`
   ).all()
 
@@ -679,6 +695,17 @@ export async function scanLibrary(
       const data = await fetchAudnexusBook(candidate.asin)
       if (data) {
         const applied = applyEnrichment(db, candidate.id, data)
+        // applyEnrichment may store a remote image URL in cover_path — download it
+        // to a local file so the cover route (Bun.file) can serve it.
+        const row = db.query<{ cover_path: string | null }, [number]>(
+          'SELECT cover_path FROM books WHERE id = ?'
+        ).get(candidate.id)
+        if (row?.cover_path && /^https?:\/\//i.test(row.cover_path)) {
+          const local = await downloadCover(row.cover_path, candidate.id)
+          if (local) {
+            db.prepare('UPDATE books SET cover_path = ? WHERE id = ?').run(local, candidate.id)
+          }
+        }
         if (!applied) notEnriched++
       } else {
         console.log(`[scanner] Enrichment failed for ASIN ${candidate.asin} — skipping`)
@@ -702,6 +729,22 @@ export async function scanLibrary(
     `[scanner] Scan complete: ${items.length} items found, ${newBooks} new, ${missingCount} marked missing, ${notEnriched} not enriched`
   );
 
+  // Materialization: enqueue any source book lacking a converted .m4b, then kick
+  // the converter (serial, fire-and-forget — does not block the scan).
+  if (isConvertEnabled()) {
+    try {
+      const outputDir = getConvertOutputDir();
+      const enqueued = enqueueUnmaterialized(db, outputDir);
+      if (enqueued > 0 && !isConvertRunning()) {
+        runConverter(db, outputDir).catch((err) => {
+          console.error('[scanner] Converter run failed:', err);
+        });
+      }
+    } catch (err) {
+      console.warn(`[scanner] Could not enqueue/kick converter: ${(err as Error).message}`);
+    }
+  }
+
   onProgress?.({ type: 'done', newBooks, updatedBooks: 0, missing: missingCount, notEnriched })
 }
 
@@ -710,11 +753,11 @@ export async function scanLibrary(
  * Guarantees lock release even if scanLibrary throws (try/finally).
  * Bridges scan progress to the scanEmitter for SSE consumers.
  */
-export async function runScan(db: Database, libraryRoot: string): Promise<void> {
+export async function runScan(db: Database, roots: string | string[]): Promise<void> {
   console.log(`[scan] runScan started, lock acquired`)
   _scanInProgress = true
   try {
-    await scanLibrary(db, libraryRoot, defaultProbeFn, (event) => {
+    await scanLibrary(db, roots, defaultProbeFn, (event) => {
       console.log(`[scan] progress event: ${event.type}${event.type === 'file' ? ` (${event.scanned}/${event.total})` : ''}`)
       scanEmitter.emit('progress', event)
       if (event.type === 'done') scanEmitter.emit('done')

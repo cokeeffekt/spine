@@ -15,6 +15,8 @@ books.get('/books', (c) => {
            EXISTS(SELECT 1 FROM chapters WHERE book_id = books.id) AS has_chapters
     FROM books
     WHERE is_missing = 0
+      -- Hide source books that have been materialized into a converted .m4b
+      AND file_path NOT IN (SELECT source_path FROM conversion_jobs WHERE status = 'completed')
     ORDER BY title COLLATE NOCASE
   `).all()
 

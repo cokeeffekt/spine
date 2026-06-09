@@ -3,7 +3,44 @@ import * as fs from "fs";
 import * as path from "path";
 
 /** Writable directory for extracted cover art — /data/covers/ is always writable in Docker. */
-const COVERS_DIR = "/data/covers";
+export const COVERS_DIR = "/data/covers";
+
+/**
+ * Download a remote cover image (e.g. an Audnexus image URL) to
+ * /data/covers/{bookId}.jpg and return the local path, or null on failure.
+ *
+ * Fixes the bug where a remote URL was stored directly in books.cover_path —
+ * the cover route serves files via Bun.file(), which cannot serve a URL.
+ */
+export async function downloadCover(
+  url: string,
+  bookId: number | string
+): Promise<string | null> {
+  if (!url || !/^https?:\/\//i.test(url)) return null;
+  try {
+    fs.mkdirSync(COVERS_DIR, { recursive: true });
+  } catch {
+    return null;
+  }
+  const coverPath = path.join(COVERS_DIR, `${bookId}.jpg`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { "User-Agent": "spine/1.0" },
+    });
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length === 0) return null;
+    fs.writeFileSync(coverPath, buf);
+    return coverPath;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 /**
  * Extract embedded cover art from an .m4b file using ffmpeg.

@@ -16,7 +16,7 @@ let _watcherInterval: ReturnType<typeof setInterval> | null = null;
  * Each tick calls scanLibrary, which handles adds, changes, and removals
  * because it walks the directory, diffs against DB, and marks missing files.
  */
-export function startWatcher(db: Database, libraryRoot: string): void {
+export function startWatcher(db: Database, roots: string | string[]): void {
   const intervalMs = parseInt(process.env["SCAN_INTERVAL_MS"] ?? "300000", 10);
 
   _watcherInterval = setInterval(async () => {
@@ -26,7 +26,7 @@ export function startWatcher(db: Database, libraryRoot: string): void {
     }
     console.log(`[watcher] Re-scanning library at ${new Date().toISOString()}`);
     try {
-      await scanLibrary(db, libraryRoot);
+      await scanLibrary(db, roots);
     } catch (err) {
       console.error(`[watcher] Scan error: ${(err as Error).message}`);
     }
