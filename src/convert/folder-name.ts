@@ -29,8 +29,13 @@ export function parseFolderName(name: string): ParsedName {
   normalized = normalized.replace(/^\d{4}\s*-\s*/, "").trim();
   if (!normalized) return { author: null, title: "" };
 
+  // Mask parenthetical/bracketed groups (same length) so a "-" inside them — e.g.
+  // "The Gunslinger (DT1 - revised edition - read by George Guidall)" — isn't mistaken for the
+  // author/title separator. Indices in the mask line up with the original string.
+  const masked = normalized.replace(/[([{][^)\]}]*[)\]}]/g, (m) => " ".repeat(m.length));
+
   // Prefer the unambiguous spaced separator.
-  const spaced = normalized.indexOf(" - ");
+  const spaced = masked.indexOf(" - ");
   if (spaced !== -1) {
     const author = normalized.slice(0, spaced).trim();
     const title = normalized.slice(spaced + 3).trim();
@@ -39,7 +44,7 @@ export function parseFolderName(name: string): ParsedName {
   }
 
   // Fall back to the first bare hyphen.
-  const hyphen = normalized.indexOf("-");
+  const hyphen = masked.indexOf("-");
   if (hyphen !== -1) {
     const author = normalized.slice(0, hyphen).trim();
     const title = normalized.slice(hyphen + 1).trim();

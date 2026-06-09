@@ -60,6 +60,20 @@ describe("parseFolderName", () => {
   test("a 4-digit-only folder with no separator is left as the title", () => {
     expect(parseFolderName("2001")).toEqual({ author: null, title: "2001" });
   });
+
+  test("does not split on a ' - ' inside parentheses", () => {
+    expect(parseFolderName("1982 - The Gunslinger (DT1 - revised edition - read by George Guidall)")).toEqual({
+      author: null,
+      title: "The Gunslinger (DT1 - revised edition - read by George Guidall)",
+    });
+  });
+
+  test("still splits a real author separator outside parentheses", () => {
+    expect(parseFolderName("Ruby Dixon - Barbarian Alien (Unabridged)")).toEqual({
+      author: "Ruby Dixon",
+      title: "Barbarian Alien (Unabridged)",
+    });
+  });
 });
 
 describe("cleanSearchTitle", () => {
