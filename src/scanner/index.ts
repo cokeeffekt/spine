@@ -735,7 +735,9 @@ export async function scanLibrary(
     try {
       const outputDir = getConvertOutputDir();
       const enqueued = enqueueUnmaterialized(db, outputDir);
-      if (enqueued > 0 && !isConvertRunning()) {
+      // Don't spawn the background converter under `bun test` (it would outlive the
+      // test and hit a closed DB). Same NODE_ENV guard server.ts uses.
+      if (enqueued > 0 && !isConvertRunning() && process.env['NODE_ENV'] !== 'test') {
         runConverter(db, outputDir).catch((err) => {
           console.error('[scanner] Converter run failed:', err);
         });

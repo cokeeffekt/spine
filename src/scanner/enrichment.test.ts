@@ -181,6 +181,21 @@ describe("applyEnrichment", () => {
     expect(book?.cover_path).toBe("https://example.com/cover.jpg");
   });
 
+  it("fills series from the real `seriesPrimary` Audnexus key", async () => {
+    const { applyEnrichment } = await import("./enrichment.js");
+
+    const result = applyEnrichment(db, 1, {
+      seriesPrimary: { asin: "B07B6H2YRL", name: "Ice Planet Barbarians", position: "10" },
+    });
+
+    expect(result).toBe(true);
+    const book = db.query<{ series_title: string | null; series_position: string | null }, [number]>(
+      "SELECT series_title, series_position FROM books WHERE id = ?"
+    ).get(1);
+    expect(book?.series_title).toBe("Ice Planet Barbarians");
+    expect(book?.series_position).toBe("10");
+  });
+
   it("fills null year, genre, language, publisher from Audnexus", async () => {
     const { applyEnrichment } = await import("./enrichment.js");
 

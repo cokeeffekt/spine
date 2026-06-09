@@ -5,7 +5,7 @@ import * as path from "path";
 import type { NormalizedChapter } from "../types.js";
 import { parseFolderName } from "./folder-name.js";
 import { searchAudibleAsin } from "./audible.js";
-import { fetchAudnexusBook, audnexusGenre, audnexusYear } from "../scanner/enrichment.js";
+import { fetchAudnexusBook, audnexusGenre, audnexusYear, audnexusSeries } from "../scanner/enrichment.js";
 import { downloadCover } from "../scanner/cover.js";
 import { deriveChapters } from "./chapters.js";
 import { buildFfmetadata } from "./ffmetadata.js";
@@ -165,10 +165,11 @@ async function processJob(
   if (asin) {
     const data = await fetchAudnexusBook(asin);
     if (data) {
+      const series = audnexusSeries(data);
       description = description ?? data.description ?? null;
       narrator = narrator ?? data.narrators?.[0]?.name ?? null;
-      series_title = series_title ?? data.series?.name ?? null;
-      series_position = series_position ?? data.series?.position ?? null;
+      series_title = series_title ?? series?.name ?? null;
+      series_position = series_position ?? series?.position ?? null;
       genre = genre ?? audnexusGenre(data);
       year = year ?? audnexusYear(data);
       language = language ?? data.language ?? null;
@@ -285,6 +286,10 @@ export async function runConverter(db: Database, outputDir: string = getConvertO
   let completed = 0;
   let failed = 0;
   try {
+    // Reclaim jobs orphaned by a restart/crash mid-transcode (serial worker, so
+    // nothing is legitimately 'processing' when a fresh run starts).
+    db.prepare(`UPDATE conversion_jobs SET status = 'pending', progress = 0 WHERE status = 'processing'`).run();
+
     const total = (db.query<{ c: number }, []>(`SELECT COUNT(*) AS c FROM conversion_jobs WHERE status = 'pending'`).get())?.c ?? 0;
     convertEmitter.emit("progress", { type: "start", total } as ConvertProgressEvent);
 

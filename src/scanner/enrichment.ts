@@ -1,14 +1,28 @@
 import { Database } from 'bun:sqlite'
 
+export interface AudnexusSeries {
+  asin?: string
+  name: string
+  position?: string
+}
+
 export interface AudnexusBook {
   description?: string
   image?: string
   narrators?: { name: string }[]
-  series?: { asin: string; name: string; position?: string }
+  /** Audnexus returns series under `seriesPrimary`; `series` kept for compatibility. */
+  seriesPrimary?: AudnexusSeries
+  seriesSecondary?: AudnexusSeries
+  series?: AudnexusSeries
   genres?: { name: string; type?: string }[]
   releaseDate?: string
   language?: string
   publisherName?: string
+}
+
+/** The primary series for a book (handles the real `seriesPrimary` key and the legacy `series`). */
+export function audnexusSeries(data: AudnexusBook): AudnexusSeries | null {
+  return data.seriesPrimary ?? data.series ?? null
 }
 
 /** Comma-joined genre names (type='genre' preferred), or null. */
@@ -115,11 +129,12 @@ export function applyEnrichment(db: Database, bookId: number, data: AudnexusBook
   if (!book.narrator && data.narrators?.[0]?.name) {
     updates.push('narrator = ?'); params.push(data.narrators[0].name)
   }
-  if (!book.series_title && data.series?.name) {
-    updates.push('series_title = ?'); params.push(data.series.name)
+  const series = audnexusSeries(data)
+  if (!book.series_title && series?.name) {
+    updates.push('series_title = ?'); params.push(series.name)
   }
-  if (!book.series_position && data.series?.position) {
-    updates.push('series_position = ?'); params.push(data.series.position)
+  if (!book.series_position && series?.position) {
+    updates.push('series_position = ?'); params.push(series.position)
   }
   if (!book.cover_path && data.image) {
     updates.push('cover_path = ?'); params.push(data.image)
