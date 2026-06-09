@@ -614,8 +614,8 @@ describe("scanFolder", () => {
     expect(chapters[2].end_sec).toBe(300);
   });
 
-  test("D-14: loose files ignored when disc subfolders present", async () => {
-    // /Book/loose.mp3, /Book/Disc 1/track.mp3
+  test("loose files at the book root are included alongside disc subfolders (prologue/epilogue)", async () => {
+    // /Book/loose.mp3, /Book/Disc 1/track.mp3 — the loose file is a prologue, not junk.
     const folderPath = path.join(tmpDir, "Book");
     const looseMp3 = path.join(folderPath, "loose.mp3");
     const discTrack = path.join(folderPath, "Disc 1", "track.mp3");
@@ -630,14 +630,53 @@ describe("scanFolder", () => {
     await scanFolder(db, folderPath, makeFakeProbeFnMap(metaMap));
 
     const book = db.query("SELECT id FROM books WHERE file_path = ?").get(folderPath) as { id: number };
-    const chapters = db.query("SELECT file_path FROM chapters WHERE book_id = ?").all(book.id) as Array<{
-      file_path: string;
-    }>;
+    const chapters = db
+      .query("SELECT file_path FROM chapters WHERE book_id = ? ORDER BY chapter_idx")
+      .all(book.id) as Array<{ file_path: string }>;
 
-    // Only disc track should be included
-    expect(chapters.length).toBe(1);
-    expect(chapters[0].file_path).toContain("Disc 1");
-    expect(chapters[0].file_path).not.toContain("loose.mp3");
+    // Both tracks included; un-numbered loose file (order 0) sorts before "Disc 1" (order 1).
+    expect(chapters.length).toBe(2);
+    expect(chapters[0].file_path).toContain("loose.mp3");
+    expect(chapters[1].file_path).toContain("Disc 1");
+  });
+
+  test("prologue + worded part subfolders collapse into one ordered book (Christine pattern)", async () => {
+    // /Book/0| Prologue.mp3, /Book/1| Part One/.., /Book/2| Part Two/.., /Book/4| Epilogue.mp3
+    const folderPath = path.join(tmpDir, "1983 - Christine");
+    const prologue = path.join(folderPath, "0| Prologue.mp3");
+    const p1 = path.join(folderPath, "1| Part One - Dennis", "a.mp3");
+    const p2 = path.join(folderPath, "2| Part Two - Arnie", "a.mp3");
+    const epilogue = path.join(folderPath, "4| Epilogue.mp3");
+    touchMp3(prologue);
+    touchMp3(p1);
+    touchMp3(p2);
+    touchMp3(epilogue);
+
+    // Walk classifies it as a single book.
+    const items = walkLibrary(tmpDir).filter((i) => i.kind === "mp3folder");
+    expect(items.length).toBe(1);
+    if (items[0].kind === "mp3folder") expect(items[0].folderPath).toBe(folderPath);
+
+    const metaMap = new Map<string, NormalizedMetadata>([
+      [prologue, makeMetadata({ title: "Prologue", duration_sec: 60, series_position: null })],
+      [p1, makeMetadata({ title: "Part One", duration_sec: 100, series_position: null })],
+      [p2, makeMetadata({ title: "Part Two", duration_sec: 100, series_position: null })],
+      [epilogue, makeMetadata({ title: "Epilogue", duration_sec: 60, series_position: null })],
+    ]);
+
+    await scanFolder(db, folderPath, makeFakeProbeFnMap(metaMap));
+
+    const book = db.query("SELECT id FROM books WHERE file_path = ?").get(folderPath) as { id: number };
+    const chapters = db
+      .query("SELECT file_path FROM chapters WHERE book_id = ? ORDER BY chapter_idx")
+      .all(book.id) as Array<{ file_path: string }>;
+
+    // One book, four chapters in narrative order: prologue → part one → part two → epilogue.
+    expect(chapters.length).toBe(4);
+    expect(chapters[0].file_path).toContain("Prologue");
+    expect(chapters[1].file_path).toContain("Part One");
+    expect(chapters[2].file_path).toContain("Part Two");
+    expect(chapters[3].file_path).toContain("Epilogue");
   });
 });
 

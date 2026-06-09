@@ -40,4 +40,24 @@ describe("parseFolderName", () => {
   test("empty string yields empty title", () => {
     expect(parseFolderName("   ")).toEqual({ author: null, title: "" });
   });
+
+  test("strips a leading year prefix (year is not an author)", () => {
+    expect(parseFolderName("1983 - Christine (read by Holter Graham)")).toEqual({
+      author: null,
+      title: "Christine (read by Holter Graham)",
+    });
+    expect(parseFolderName("1981 - Roadwork")).toEqual({ author: null, title: "Roadwork" });
+    expect(parseFolderName("1982-The Talisman")).toEqual({ author: null, title: "The Talisman" });
+  });
+
+  test("year prefix strip still recovers an author after the year", () => {
+    expect(parseFolderName("1983 - Stephen King - Christine")).toEqual({
+      author: "Stephen King",
+      title: "Christine",
+    });
+  });
+
+  test("a 4-digit-only folder with no separator is left as the title", () => {
+    expect(parseFolderName("2001")).toEqual({ author: null, title: "2001" });
+  });
 });

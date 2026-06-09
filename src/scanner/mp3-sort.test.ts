@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { parseTrackNumber, sortTracks, parseDiscNumber, DISC_FOLDER_RE } from "./mp3-sort.js";
+import { parseTrackNumber, sortTracks, parseDiscNumber, DISC_FOLDER_RE, isSectionFolder, parseSectionOrder } from "./mp3-sort.js";
 
 // ─── parseTrackNumber ──────────────────────────────────────────────────────
 
@@ -169,5 +169,56 @@ describe("parseDiscNumber", () => {
 
   test("DISC_FOLDER_RE is exported and is a RegExp", () => {
     expect(DISC_FOLDER_RE).toBeInstanceOf(RegExp);
+  });
+});
+
+// ─── isSectionFolder ─────────────────────────────────────────────────────────
+
+describe("isSectionFolder", () => {
+  test("strict disc/part patterns are sections", () => {
+    expect(isSectionFolder("Disc 1")).toBe(true);
+    expect(isSectionFolder("CD 2")).toBe(true);
+    expect(isSectionFolder("Part 3")).toBe(true);
+  });
+
+  test("worded/decorated part folders are sections (Christine pattern)", () => {
+    expect(isSectionFolder("1| Part One - Dennis - Teenage Car Songs")).toBe(true);
+    expect(isSectionFolder("3| Part Three - Christine - Teenage Death Songs")).toBe(true);
+    expect(isSectionFolder("Section 2")).toBe(true);
+  });
+
+  test("internal 'Book N' / 'Chapter N' divisions are sections (The Stand pattern)", () => {
+    // A novel split into internal Books/Chapters is one work, not a series.
+    expect(isSectionFolder("Book 1 - Captain Trips")).toBe(true);
+    expect(isSectionFolder("2| Book I - Captain Trips")).toBe(true);
+    expect(isSectionFolder("Chapter 1")).toBe(true);
+  });
+
+  test("series-entry folders are NOT sections", () => {
+    // These are distinct books in a series (separate top-level folders), not parts of one book.
+    expect(isSectionFolder("1. Ice Planet Barbarians")).toBe(false);
+    expect(isSectionFolder("2. Barbarian Alien")).toBe(false);
+    expect(isSectionFolder("The Fellowship of the Ring")).toBe(false);
+  });
+});
+
+// ─── parseSectionOrder ───────────────────────────────────────────────────────
+
+describe("parseSectionOrder", () => {
+  test("uses disc number when present", () => {
+    expect(parseSectionOrder("Disc 2")).toBe(2);
+    expect(parseSectionOrder("Part 3")).toBe(3);
+  });
+
+  test("uses a leading integer prefix", () => {
+    expect(parseSectionOrder("0| Prologue.mp3")).toBe(0);
+    expect(parseSectionOrder("1| Part One - Dennis")).toBe(1);
+    expect(parseSectionOrder("4| Epilogue.mp3")).toBe(4);
+    expect(parseSectionOrder("01.mp3")).toBe(1);
+  });
+
+  test("returns null when there is no leading ordinal", () => {
+    expect(parseSectionOrder("Prologue.mp3")).toBeNull();
+    expect(parseSectionOrder("Part One")).toBeNull();
   });
 });

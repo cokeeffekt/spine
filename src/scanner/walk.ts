@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { parseDiscNumber } from "./mp3-sort.js";
+import { isSectionFolder } from "./mp3-sort.js";
 
 /**
  * Discriminated union representing one scannable item from the library walk.
@@ -17,14 +17,15 @@ export type ScanItem =
  * - .m4b files as { kind: 'file', path }
  * - folders containing .mp3 files as { kind: 'mp3folder', folderPath }
  *
- * Rules:
- * - D-03: If a folder has both .m4b and .mp3 files, the .m4b wins — no mp3folder emitted.
- * - D-12/D-13: Disc subfolders (Disc 1/, CD 2/, etc.) are NOT emitted as standalone books.
- *   Their parent folder is the mp3folder.
- * - D-04: If a folder has child directories with .mp3 files that are NOT disc subfolders,
- *   the parent is skipped (only the children are candidates).
- * - Multi-disc: If a folder has NO direct .mp3 files but ALL child dirs with .mp3 files
- *   are disc subfolders, the parent IS emitted as the mp3folder.
+ * Rules (top-down classification):
+ * - D-03: If a folder has .m4b files, the .m4b wins — no mp3folder is emitted for it.
+ * - Loose-file book root: a folder with direct .mp3 files IS one book, and it ABSORBS every
+ *   .mp3 in its subfolders (prologue/epilogue at the root + parts/discs in subfolders all
+ *   belong to the same book). Its subfolders are never emitted as standalone books.
+ * - Section-only book root: a folder with NO direct .mp3 files whose mp3-bearing children are
+ *   ALL section subfolders (Disc N / CD N / Part N / "…Part…") IS the book; children are not.
+ * - Container: a folder with NO direct .mp3 files whose mp3-bearing children are NOT all
+ *   sections (e.g. an author/series folder) is skipped — we descend into each child instead.
  * - Single-file MP3 audiobooks (one .mp3 in a folder) ARE emitted as a book.
  *
  * Results are sorted for deterministic output.
@@ -32,11 +33,9 @@ export type ScanItem =
 export function walkLibrary(root: string): ScanItem[] {
   const entries = fs.readdirSync(root, { withFileTypes: true, recursive: true });
 
-  // Collect .m4b file paths
   const m4bPaths: string[] = [];
-
-  // Build map: directory path → list of .mp3 absolute file paths
-  const mp3ByDir = new Map<string, string[]>();
+  const mp3ByDir = new Map<string, string[]>(); // dir → direct .mp3 files
+  const childDirs = new Map<string, Set<string>>(); // dir → immediate child directories
 
   for (const entry of entries) {
     const dir =
@@ -44,115 +43,75 @@ export function walkLibrary(root: string): ScanItem[] {
       (entry as unknown as { path: string }).path;
     const absPath = path.join(dir, entry.name);
 
-    if (entry.isFile()) {
+    if (entry.isDirectory()) {
+      const set = childDirs.get(dir);
+      if (set) set.add(absPath);
+      else childDirs.set(dir, new Set([absPath]));
+    } else if (entry.isFile()) {
       if (entry.name.endsWith(".m4b")) {
         m4bPaths.push(absPath);
       } else if (entry.name.endsWith(".mp3")) {
         const existing = mp3ByDir.get(dir);
-        if (existing) {
-          existing.push(absPath);
-        } else {
-          mp3ByDir.set(dir, [absPath]);
-        }
+        if (existing) existing.push(absPath);
+        else mp3ByDir.set(dir, [absPath]);
       }
     }
   }
 
-  // Build a Set of all directories containing .m4b files (for D-03 check)
   const m4bDirs = new Set<string>(m4bPaths.map((p) => path.dirname(p)));
 
-  // Build the result items
+  // Memoized "does this directory's subtree contain any .mp3?"
+  const subtreeHasMp3 = new Map<string, boolean>();
+  function hasMp3(dir: string): boolean {
+    const cached = subtreeHasMp3.get(dir);
+    if (cached !== undefined) return cached;
+    let has = (mp3ByDir.get(dir)?.length ?? 0) > 0;
+    if (!has) {
+      for (const child of childDirs.get(dir) ?? []) {
+        if (hasMp3(child)) {
+          has = true;
+          break;
+        }
+      }
+    }
+    subtreeHasMp3.set(dir, has);
+    return has;
+  }
+
   const items: ScanItem[] = [];
+  for (const p of m4bPaths) items.push({ kind: "file", path: p });
 
-  // Add all .m4b files
-  for (const p of m4bPaths) {
-    items.push({ kind: "file", path: p });
-  }
+  function classify(dir: string): void {
+    const kidsWithMp3 = [...(childDirs.get(dir) ?? [])].filter(hasMp3);
 
-  // Determine which directories are MP3 book roots
-  // Collect all directories that have .mp3 files
-  const mp3Dirs = new Set(mp3ByDir.keys());
-
-  for (const dir of mp3ByDir.keys()) {
-    const folderName = path.basename(dir);
-    const isDiscFolder = parseDiscNumber(folderName) !== null;
-
-    // D-03: If the folder contains .m4b files, skip — m4b wins
-    if (m4bDirs.has(dir)) continue;
-
-    // D-12/D-13: If this directory is a disc subfolder, skip it as standalone
-    if (isDiscFolder) continue;
-
-    // D-04: Check if this folder has child directories that also have .mp3 files
-    // and those children are NOT disc subfolders.
-    // If so, this folder is NOT a leaf — skip it.
-    let hasNonDiscChildWithMp3 = false;
-    for (const otherDir of mp3Dirs) {
-      if (otherDir === dir) continue;
-      // Is otherDir a direct child of dir?
-      if (path.dirname(otherDir) === dir) {
-        const childName = path.basename(otherDir);
-        if (parseDiscNumber(childName) === null) {
-          // This child has mp3 files and is NOT a disc subfolder
-          hasNonDiscChildWithMp3 = true;
-          break;
-        }
+    // D-03: .m4b in this folder wins. Its loose .mp3 and any section subfolders are duplicate
+    // sources of the same book and are ignored. Non-section subfolders are unrelated books,
+    // so we still descend into those.
+    if (m4bDirs.has(dir)) {
+      for (const child of kidsWithMp3) {
+        if (!isSectionFolder(path.basename(child))) classify(child);
       }
+      return;
     }
-    if (hasNonDiscChildWithMp3) continue;
 
-    // This directory is a valid MP3 book root
-    items.push({ kind: "mp3folder", folderPath: dir });
+    const loose = mp3ByDir.get(dir) ?? [];
+    if (loose.length > 0) {
+      // Loose .mp3 here → this folder is one book; its subfolders are sections it absorbs.
+      items.push({ kind: "mp3folder", folderPath: dir });
+      return;
+    }
+
+    if (kidsWithMp3.length === 0) return;
+
+    // No loose files: if every mp3-bearing child is a section (disc/part), this folder is the
+    // book. Otherwise it's a container (author/series) — descend into each child.
+    if (kidsWithMp3.every((k) => isSectionFolder(path.basename(k)))) {
+      items.push({ kind: "mp3folder", folderPath: dir });
+      return;
+    }
+    for (const child of kidsWithMp3) classify(child);
   }
-
-  // Handle "parent with disc subfolders only" case:
-  // If a directory has NO direct .mp3 files but ALL its child directories
-  // with .mp3 files are disc subfolders → the parent is the mp3folder.
-  // (These parents won't appear in mp3ByDir since they have no direct .mp3 files)
-  const emittedFolders = new Set(
-    items
-      .filter((i): i is { kind: "mp3folder"; folderPath: string } => i.kind === "mp3folder")
-      .map((i) => i.folderPath)
-  );
-
-  // Collect all potential parent directories of disc subfolders
-  const parentDirsOfDiscFolders = new Set<string>();
-  for (const dir of mp3Dirs) {
-    const folderName = path.basename(dir);
-    if (parseDiscNumber(folderName) !== null) {
-      parentDirsOfDiscFolders.add(path.dirname(dir));
-    }
-  }
-
-  for (const parentDir of parentDirsOfDiscFolders) {
-    // Skip if already emitted
-    if (emittedFolders.has(parentDir)) continue;
-    // Skip if parent itself has .mp3 files (it's already handled above or skipped)
-    if (mp3ByDir.has(parentDir)) continue;
-    // Skip if parent contains .m4b files (D-03)
-    if (m4bDirs.has(parentDir)) continue;
-    // Skip if parent is itself a disc subfolder
-    if (parseDiscNumber(path.basename(parentDir)) !== null) continue;
-
-    // Verify ALL child dirs with .mp3 files under parentDir are disc subfolders
-    let allChildrenAreDiscs = true;
-    let hasAnyDiscChild = false;
-    for (const otherDir of mp3Dirs) {
-      if (path.dirname(otherDir) === parentDir) {
-        const childName = path.basename(otherDir);
-        if (parseDiscNumber(childName) !== null) {
-          hasAnyDiscChild = true;
-        } else {
-          allChildrenAreDiscs = false;
-          break;
-        }
-      }
-    }
-
-    if (hasAnyDiscChild && allChildrenAreDiscs) {
-      items.push({ kind: "mp3folder", folderPath: parentDir });
-    }
-  }
+  classify(root);
 
   // Sort for deterministic output
   return items.sort((a, b) => {

@@ -8,7 +8,7 @@ import { walkLibrary } from "./walk.js";
 import type { ScanItem } from "./walk.js";
 import { applyFallbackMetadata } from "./fallback.js";
 import { fetchAudnexusBook, applyEnrichment } from "./enrichment.js";
-import { parseTrackNumber, sortTracks, parseDiscNumber } from "./mp3-sort.js";
+import { parseTrackNumber, sortTracks, parseSectionOrder } from "./mp3-sort.js";
 import type { NormalizedMetadata } from "../types.js";
 import { enqueueUnmaterialized, runConverter, isConvertRunning } from "../convert/index.js";
 import { isConvertEnabled, getConvertOutputDir } from "../config.js";
@@ -210,12 +210,16 @@ export async function scanFile(
 // ─── MP3 folder scanner helpers ──────────────────────────────────────────────
 
 /**
- * Collect all .mp3 files for an MP3 audiobook folder, handling multi-disc layouts.
+ * Collect all .mp3 files for an MP3 audiobook folder, handling multi-disc / multi-part layouts.
  *
- * Per D-12/D-13/D-14:
- * - If disc subdirectories exist, ignore loose .mp3 files.
- * - Disc subfolders are any whose names match DISC_FOLDER_RE (e.g. "Disc 1", "CD 2").
- * - Returns { filePath, discNumber } for each track (discNumber=0 for flat layouts).
+ * The walker has already decided this folder is ONE book, so every .mp3 in the folder and its
+ * subfolders belongs to it. We assign each file a section order so the caller can sort them:
+ * - Flat folder (no subfolders with .mp3): all files get discNumber=0 (sorted by track tag).
+ * - Sectioned folder (e.g. Prologue.mp3 at root + Part One/Two/Three subfolders): each loose
+ *   file and each subfolder is ordered by its leading ordinal ("0| Prologue" → 0,
+ *   "1| Part One …" → 1, "Disc 2" → 2). Files inside a subfolder inherit the subfolder's order.
+ *   Subfolders with no leading ordinal fall back to a stable alphabetical position after the
+ *   numbered ones; unnumbered loose files sort first (order 0), as intros usually do.
  */
 function resolveMp3Files(
   folderPath: string
@@ -227,42 +231,60 @@ function resolveMp3Files(
     return [];
   }
 
-  const discSubdirs: Array<{ name: string; discNumber: number }> = [];
+  const subdirs: string[] = [];
   const looseMp3s: string[] = [];
-
   for (const entry of entries) {
     if (entry.isDirectory()) {
-      const discNum = parseDiscNumber(entry.name);
-      if (discNum !== null) {
-        discSubdirs.push({ name: entry.name, discNumber: discNum });
-      }
+      subdirs.push(entry.name);
     } else if (entry.isFile() && entry.name.endsWith(".mp3")) {
       looseMp3s.push(path.join(folderPath, entry.name));
     }
   }
 
-  // D-14: If disc subdirectories exist, ignore loose .mp3 files
-  if (discSubdirs.length > 0) {
-    const result: Array<{ filePath: string; discNumber: number }> = [];
-    for (const disc of discSubdirs) {
-      const discPath = path.join(folderPath, disc.name);
-      // Collect all .mp3 files from the disc subfolder (flat read)
-      try {
-        const discEntries = fs.readdirSync(discPath, { withFileTypes: true });
-        for (const e of discEntries) {
-          if (e.isFile() && e.name.endsWith(".mp3")) {
-            result.push({ filePath: path.join(discPath, e.name), discNumber: disc.discNumber });
-          }
-        }
-      } catch {
-        // skip inaccessible disc folder
-      }
+  // Recursively gather .mp3 files under a subdirectory.
+  const gatherMp3 = (dir: string): string[] => {
+    const out: string[] = [];
+    let subEntries: fs.Dirent[];
+    try {
+      subEntries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return out;
     }
-    return result;
+    for (const e of subEntries) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) out.push(...gatherMp3(p));
+      else if (e.isFile() && e.name.endsWith(".mp3")) out.push(p);
+    }
+    return out;
+  };
+
+  const subdirsWithMp3 = subdirs
+    .map((name) => ({ name, files: gatherMp3(path.join(folderPath, name)) }))
+    .filter((s) => s.files.length > 0);
+
+  // Flat layout — no subfolders contribute tracks. Preserve simple disc=0 behaviour.
+  if (subdirsWithMp3.length === 0) {
+    return looseMp3s.map((fp) => ({ filePath: fp, discNumber: 0 }));
   }
 
-  // No disc subfolders — collect loose .mp3 files with discNumber = 0
-  return looseMp3s.map((fp) => ({ filePath: fp, discNumber: 0 }));
+  // Sectioned layout. Order numbered sections by their ordinal; place un-numbered subfolders
+  // after the numbered ones (alphabetically), and un-numbered loose files first.
+  let fallbackBase = 0;
+  for (const s of subdirsWithMp3) {
+    const ord = parseSectionOrder(s.name);
+    if (ord !== null && ord > fallbackBase) fallbackBase = ord;
+  }
+  let nextFallback = fallbackBase + 1;
+
+  const result: Array<{ filePath: string; discNumber: number }> = [];
+  for (const fp of looseMp3s) {
+    result.push({ filePath: fp, discNumber: parseSectionOrder(path.basename(fp)) ?? 0 });
+  }
+  for (const s of [...subdirsWithMp3].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))) {
+    const ord = parseSectionOrder(s.name) ?? nextFallback++;
+    for (const fp of s.files) result.push({ filePath: fp, discNumber: ord });
+  }
+  return result;
 }
 
 /**
