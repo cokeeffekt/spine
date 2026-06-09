@@ -143,7 +143,9 @@ async function processJob(
   let author: string | null;
   if (job.source_kind === "mp3folder") {
     title = pick(overrides.title, looksLikeJunkTitle(book.title) ? null : book.title, parsed.title, book.title);
-    author = pick(overrides.author, parsed.author, book.author);
+    // The scanned author (grandparent dir in an /Author/Title layout) is more reliable than a
+    // hyphen-split of the book-folder name (e.g. "Galactic Pot-Healer" -> "Galactic Pot").
+    author = pick(overrides.author, book.author, parsed.author);
   } else {
     title = pick(overrides.title, book.title, parsed.title);
     author = pick(overrides.author, book.author, parsed.author);
@@ -399,37 +401,45 @@ export async function reEnrichConvertedBooks(db: Database, outputDir: string = g
     const deNum = parseFolderName(base).title.replace(/^\s*\d+\s*[.)\-]\s*/, "").trim();
     const searchTitle = deNum || book.title;
 
-    const asin = await searchAudibleAsin(searchTitle, book.author, { durationSec: book.duration_sec ?? undefined });
-    if (!asin) continue;
-    const data = await fetchAudnexusBook(asin);
-    if (!data) continue;
+    // Use the SOURCE book's author (grandparent dir — reliable) for the search and as a
+    // fallback, since the converted row's author may be a junk hyphen-split of the title.
+    const sourceBook = db.query<{ author: string | null }, [string]>(
+      `SELECT author FROM books WHERE file_path = ?`
+    ).get(j.source_path);
+    const sourceAuthor = sourceBook?.author ?? null;
 
-    const series = audnexusSeries(data);
+    const asin = await searchAudibleAsin(searchTitle, sourceAuthor ?? book.author, { durationSec: book.duration_sec ?? undefined });
+    const data = asin ? await fetchAudnexusBook(asin) : null;
+
+    const series = data ? audnexusSeries(data) : null;
     const overrides = j.metadata_json ? safeParse(j.metadata_json) : {};
     const sets: string[] = [];
     const params: unknown[] = [];
     const set = (col: string, val: unknown) => {
       if (val !== null && val !== undefined && String(val).trim()) { sets.push(`${col} = ?`); params.push(String(val).trim()); }
     };
-    // Canonical title/author from the API (admin overrides win); folder-derived names otherwise.
-    set("title", pick(overrides.title, audnexusTitle(data)));
-    set("author", pick(overrides.author, audnexusAuthor(data)));
-    set("asin", asin);
-    set("series_title", series?.name);
-    set("series_position", series?.position);
-    set("narrator", data.narrators?.[0]?.name);
-    set("description", data.description);
-    set("genre", audnexusGenre(data));
-    set("year", audnexusYear(data));
-    set("language", data.language);
-    set("publisher", data.publisherName);
+    // Author can always be corrected from the reliable source author even with no API match.
+    // Title and the rest only change when we have API data. Admin overrides win.
+    set("author", pick(overrides.author, data ? audnexusAuthor(data) : null, sourceAuthor));
+    if (data) {
+      set("title", pick(overrides.title, audnexusTitle(data)));
+      set("asin", asin);
+      set("series_title", series?.name);
+      set("series_position", series?.position);
+      set("narrator", data.narrators?.[0]?.name);
+      set("description", data.description);
+      set("genre", audnexusGenre(data));
+      set("year", audnexusYear(data));
+      set("language", data.language);
+      set("publisher", data.publisherName);
+    }
     if (sets.length > 0) {
       db.prepare(`UPDATE books SET ${sets.join(", ")}, updated_at = datetime('now') WHERE id = ?`).run(...params, book.id);
       updated++;
     }
 
     const hasLocalCover = book.cover_path && !/^https?:\/\//i.test(book.cover_path) && fs.existsSync(book.cover_path);
-    if (!hasLocalCover && data.image) {
+    if (!hasLocalCover && data?.image) {
       const local = await downloadCover(data.image, book.id);
       if (local) db.prepare(`UPDATE books SET cover_path = ? WHERE id = ?`).run(local, book.id);
     }
