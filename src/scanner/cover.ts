@@ -1,13 +1,29 @@
 import { spawn } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
+import { getCoverSize } from "../config.js";
 
 /** Writable directory for extracted cover art — /data/covers/ is always writable in Docker. */
 export const COVERS_DIR = "/data/covers";
 
 /**
+ * Rewrite an Amazon media-CDN image URL to request a smaller, properly-encoded image.
+ * Audnexus returns bare full-size URLs (e.g. .../91eSLstxHiL.jpg → 2400px). Amazon's CDN
+ * supports a size modifier inserted before the extension (._SL500_ = scale longest side to
+ * 500px). Any existing modifier is replaced. Non-Amazon URLs are returned unchanged.
+ */
+export function resizeAmazonImageUrl(url: string, maxPx: number): string {
+  if (!Number.isFinite(maxPx) || maxPx <= 0) return url;
+  return url.replace(
+    /(:\/\/[^/]*amazon\.com\/images\/[^?]+?)(\._[A-Za-z0-9,]+_)?(\.(?:jpg|jpeg|png|gif))(\?|$)/i,
+    (_m, base, _mod, ext, tail) => `${base}._SL${maxPx}_${ext}${tail}`
+  );
+}
+
+/**
  * Download a remote cover image (e.g. an Audnexus image URL) to
  * /data/covers/{bookId}.jpg and return the local path, or null on failure.
+ * Amazon CDN URLs are downscaled to COVER_SIZE (default 500px) before download.
  *
  * Fixes the bug where a remote URL was stored directly in books.cover_path —
  * the cover route serves files via Bun.file(), which cannot serve a URL.
@@ -17,6 +33,7 @@ export async function downloadCover(
   bookId: number | string
 ): Promise<string | null> {
   if (!url || !/^https?:\/\//i.test(url)) return null;
+  url = resizeAmazonImageUrl(url, getCoverSize());
   try {
     fs.mkdirSync(COVERS_DIR, { recursive: true });
   } catch {

@@ -63,3 +63,9 @@ export function getMonolithicFileThreshold(): number {
 export function getFixedChapterSec(): number {
   return parseInt(process.env["CONVERT_FIXED_CHAPTER_SEC"] ?? "900", 10);
 }
+
+/** Max edge (px) to request for downloaded cover art (Amazon CDN resize). Default 500. */
+export function getCoverSize(): number {
+  const n = parseInt(process.env["COVER_SIZE"] ?? "500", 10);
+  return Number.isFinite(n) && n > 0 ? n : 500;
+}

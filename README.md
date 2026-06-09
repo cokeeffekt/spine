@@ -122,6 +122,7 @@ All configuration is in `docker-compose.yml`:
 | `LIBRARY_CONVERTED_ONLY` | `false` | When `true`, the library shows only converted books (under `CONVERT_OUTPUT_DIR`); un-converted sources are hidden until materialized |
 | `CONVERT_MONO_FILES` | `2` | A folder with ≤ this many files is "monolithic" → chapters are derived rather than per-file |
 | `CONVERT_FIXED_CHAPTER_SEC` | `900` | Fixed chapter length (s) for the last-resort chapterizer |
+| `COVER_SIZE` | `500` | Max edge (px) for downloaded cover art; Amazon CDN images are requested at this size |
 | `AUDIBLE_REGION` | `us` | Audible region for catalog search (`us`, `uk`, `ca`, `au`, …) |
 | `ADMIN_USERNAME` | _(none)_ | Auto-create admin user on first run |
 | `ADMIN_PASSWORD` | _(none)_ | Password for auto-created admin |

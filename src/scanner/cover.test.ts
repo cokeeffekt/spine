@@ -2,8 +2,32 @@ import { describe, test, expect } from "bun:test";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import { extractCoverArt, resolveCoverPath } from "./cover";
+import { extractCoverArt, resolveCoverPath, resizeAmazonImageUrl } from "./cover";
 import { walkLibrary } from "./walk";
+
+describe("resizeAmazonImageUrl", () => {
+  test("inserts a size modifier into a bare Amazon image URL", () => {
+    expect(resizeAmazonImageUrl("https://m.media-amazon.com/images/I/91eSLstxHiL.jpg", 500)).toBe(
+      "https://m.media-amazon.com/images/I/91eSLstxHiL._SL500_.jpg"
+    );
+  });
+
+  test("replaces an existing size modifier", () => {
+    expect(
+      resizeAmazonImageUrl("https://m.media-amazon.com/images/I/91eSLstxHiL._SL2400_.jpg", 500)
+    ).toBe("https://m.media-amazon.com/images/I/91eSLstxHiL._SL500_.jpg");
+  });
+
+  test("leaves non-Amazon URLs unchanged", () => {
+    const u = "https://example.com/cover.jpg";
+    expect(resizeAmazonImageUrl(u, 500)).toBe(u);
+  });
+
+  test("returns the URL unchanged for a non-positive size", () => {
+    const u = "https://m.media-amazon.com/images/I/91eSLstxHiL.jpg";
+    expect(resizeAmazonImageUrl(u, 0)).toBe(u);
+  });
+});
 
 describe("extractCoverArt", () => {
   test("returns null immediately when hasAttachedPic is false", async () => {
