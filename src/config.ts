@@ -29,6 +29,15 @@ export function isConvertEnabled(): boolean {
   return (process.env["CONVERT_ENABLED"] ?? "true").toLowerCase() !== "false";
 }
 
+/**
+ * When true, the library list shows ONLY converted books (those under
+ * CONVERT_OUTPUT_DIR) — un-converted sources are hidden until materialized.
+ * Default off to preserve the show-everything behaviour.
+ */
+export function isLibraryConvertedOnly(): boolean {
+  return (process.env["LIBRARY_CONVERTED_ONLY"] ?? "false").toLowerCase() === "true";
+}
+
 /** AAC target bitrate for mp3→m4b transcodes (m4b remux uses copy and ignores this). */
 export function getConvertBitrate(): string {
   return process.env["CONVERT_BITRATE"] ?? "64k";

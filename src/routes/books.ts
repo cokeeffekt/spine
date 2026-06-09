@@ -1,12 +1,25 @@
 import { Hono } from 'hono'
 import { getDatabase } from '../db/index.js'
 import type { AuthVariables } from '../middleware/auth.js'
+import { isLibraryConvertedOnly, getConvertOutputDir } from '../config.js'
 
 const books = new Hono<{ Variables: AuthVariables }>()
 
 // GET /api/books — list all books (per D-10: flat array, no pagination; per D-11: specific fields)
 books.get('/books', (c) => {
   const db = getDatabase()
+
+  let filter: string
+  const params: string[] = []
+  if (isLibraryConvertedOnly()) {
+    // Show only materialized books (those under the converted output dir)
+    filter = 'AND file_path LIKE ?'
+    params.push(getConvertOutputDir().replace(/\/+$/, '') + '/%')
+  } else {
+    // Hide source books that have been materialized into a converted .m4b
+    filter = "AND file_path NOT IN (SELECT source_path FROM conversion_jobs WHERE status = 'completed')"
+  }
+
   const rows = db.query(`
     SELECT id, title, author, narrator, duration_sec,
            CASE WHEN cover_path IS NOT NULL
@@ -15,10 +28,9 @@ books.get('/books', (c) => {
            EXISTS(SELECT 1 FROM chapters WHERE book_id = books.id) AS has_chapters
     FROM books
     WHERE is_missing = 0
-      -- Hide source books that have been materialized into a converted .m4b
-      AND file_path NOT IN (SELECT source_path FROM conversion_jobs WHERE status = 'completed')
+      ${filter}
     ORDER BY title COLLATE NOCASE
-  `).all()
+  `).all(...params)
 
   return c.json(rows) // per D-09: no envelope wrapper, direct array
 })

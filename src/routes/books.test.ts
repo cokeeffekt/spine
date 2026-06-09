@@ -197,6 +197,28 @@ describe("GET /api/books", () => {
     const books = await res.json() as any[];
     expect(books.map((b: any) => b.title)).toContain('Another Story');
   });
+
+  it("with LIBRARY_CONVERTED_ONLY=true, shows only books under the converted dir", async () => {
+    process.env['LIBRARY_CONVERTED_ONLY'] = 'true';
+    process.env['CONVERT_OUTPUT_DIR'] = '/converted';
+    // A materialized book lives under /converted
+    db.query(
+      `INSERT INTO books (id, file_path, file_mtime, file_size, is_missing, title, author)
+       VALUES (50, '/converted/Author One/The Great Book.m4b', 1, 1, 0, 'The Great Book (m4b)', 'Author One')`
+    ).run();
+    try {
+      const app = await makeBooksApp();
+      const res = await app.request('/api/books', {
+        headers: { Cookie: `session=${sessionToken}` }
+      });
+      const books = await res.json() as any[];
+      const titles = books.map((b: any) => b.title);
+      expect(titles).toEqual(['The Great Book (m4b)']); // only the /converted book
+    } finally {
+      delete process.env['LIBRARY_CONVERTED_ONLY'];
+      delete process.env['CONVERT_OUTPUT_DIR'];
+    }
+  });
 });
 
 describe("GET /api/books/:id", () => {
