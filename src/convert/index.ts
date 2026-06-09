@@ -161,7 +161,12 @@ async function processJob(
   let coverImageUrl: string | null = null;
 
   // --- Resolve ASIN + enrich gaps from Audnexus ---
-  if (!asin) asin = await searchAudibleAsin(title, author);
+  // Search with the distinctive folder title (e.g. "10. Barbarians Hope" -> "Barbarians
+  // Hope") and the file duration, so runtime disambiguation picks the right entry rather
+  // than the series' book 1 / omnibus.
+  const deNumberedTitle = parsed.title.replace(/^\s*\d+\s*[.)\-]\s*/, "").trim();
+  const searchTitle = job.source_kind === "mp3folder" ? (deNumberedTitle || title) : (title || deNumberedTitle);
+  if (!asin) asin = await searchAudibleAsin(searchTitle, author, { durationSec: book.duration_sec ?? undefined });
   if (asin) {
     const data = await fetchAudnexusBook(asin);
     if (data) {
@@ -334,6 +339,65 @@ export async function runConverter(db: Database, outputDir: string = getConvertO
     convertEmitter.emit("done");
     console.log(`[convert] Converter idle — ${completed} completed, ${failed} failed this run`);
   }
+}
+
+/**
+ * Re-resolve metadata for already-converted books using the improved (runtime-aware)
+ * Audible match, and OVERWRITE the Audnexus-sourced fields (series, narrator, year,
+ * genre, language, publisher, description, asin) + a missing cover. Title/author are
+ * left as-is. Used to backfill books converted before a matching improvement.
+ */
+export async function reEnrichConvertedBooks(db: Database, outputDir: string = getConvertOutputDir()): Promise<{ updated: number; checked: number }> {
+  const jobs = db.query<{ source_path: string; output_path: string }, []>(
+    `SELECT source_path, output_path FROM conversion_jobs WHERE status = 'completed' AND output_path IS NOT NULL`
+  ).all();
+  let updated = 0;
+  let checked = 0;
+  for (const j of jobs) {
+    const book = db.query<{ id: number; title: string | null; author: string | null; duration_sec: number | null; cover_path: string | null }, [string]>(
+      `SELECT id, title, author, duration_sec, cover_path FROM books WHERE file_path = ?`
+    ).get(j.output_path);
+    if (!book) continue;
+    checked++;
+
+    const base = j.source_path.toLowerCase().endsWith(".m4b")
+      ? path.basename(j.source_path, path.extname(j.source_path))
+      : path.basename(j.source_path);
+    const deNum = parseFolderName(base).title.replace(/^\s*\d+\s*[.)\-]\s*/, "").trim();
+    const searchTitle = deNum || book.title;
+
+    const asin = await searchAudibleAsin(searchTitle, book.author, { durationSec: book.duration_sec ?? undefined });
+    if (!asin) continue;
+    const data = await fetchAudnexusBook(asin);
+    if (!data) continue;
+
+    const series = audnexusSeries(data);
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    const set = (col: string, val: unknown) => {
+      if (val !== null && val !== undefined && String(val).trim()) { sets.push(`${col} = ?`); params.push(String(val).trim()); }
+    };
+    set("asin", asin);
+    set("series_title", series?.name);
+    set("series_position", series?.position);
+    set("narrator", data.narrators?.[0]?.name);
+    set("description", data.description);
+    set("genre", audnexusGenre(data));
+    set("year", audnexusYear(data));
+    set("language", data.language);
+    set("publisher", data.publisherName);
+    if (sets.length > 0) {
+      db.prepare(`UPDATE books SET ${sets.join(", ")}, updated_at = datetime('now') WHERE id = ?`).run(...params, book.id);
+      updated++;
+    }
+
+    const hasLocalCover = book.cover_path && !/^https?:\/\//i.test(book.cover_path) && fs.existsSync(book.cover_path);
+    if (!hasLocalCover && data.image) {
+      const local = await downloadCover(data.image, book.id);
+      if (local) db.prepare(`UPDATE books SET cover_path = ? WHERE id = ?`).run(local, book.id);
+    }
+  }
+  return { updated, checked };
 }
 
 // ─── small helpers ───────────────────────────────────────────────────────────
