@@ -34,6 +34,10 @@ describe("normalizeTag", () => {
   test("returns null when none of multiple keys found", () => {
     expect(normalizeTag({}, "artist", "album_artist")).toBeNull();
   });
+
+  test("returns null when tags is undefined", () => {
+    expect(normalizeTag(undefined, "title")).toBeNull();
+  });
 });
 
 describe("normalizeChapters", () => {
@@ -119,6 +123,24 @@ describe("normalizeMetadata", () => {
     const result = normalizeMetadata(uppercaseFixture);
     expect(result.title).toBe("Caps Title");
     expect(result.author).toBe("Caps Author");
+  });
+
+  test("tagless file (no format.tags) does not throw and yields null fields", () => {
+    const taglessFixture: FfprobeOutput = {
+      format: {
+        duration: "1234.5",
+        size: "5000000",
+        // no tags key at all — common for ripped MP3s
+      },
+      streams: [{ codec_type: "audio", codec_name: "mp3" }],
+      chapters: [],
+    };
+    const result = normalizeMetadata(taglessFixture);
+    expect(result.title).toBeNull();
+    expect(result.author).toBeNull();
+    expect(result.codec).toBe("mp3");
+    expect(result.duration_sec).toBeCloseTo(1234.5, 4);
+    expect(result.chapters).toHaveLength(1);
   });
 
   test("detects codec from first audio stream", () => {

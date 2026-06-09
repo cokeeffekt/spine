@@ -6,9 +6,10 @@ import type { FfprobeOutput, NormalizedMetadata, NormalizedChapter } from "../ty
  * Accepts multiple key names; returns first non-empty trimmed match or null.
  */
 export function normalizeTag(
-  tags: Record<string, string | undefined>,
+  tags: Record<string, string | undefined> | undefined | null,
   ...keys: string[]
 ): string | null {
+  if (!tags) return null;
   for (const key of keys) {
     // Try exact, uppercase, and lowercase variants
     const variants = [key, key.toUpperCase(), key.toLowerCase()];
@@ -62,7 +63,9 @@ export function normalizeChapters(
  * Normalize all metadata fields from ffprobe output into a structured object.
  */
 export function normalizeMetadata(output: FfprobeOutput): NormalizedMetadata {
-  const tags = output.format.tags;
+  // Tagless files (common for ripped MP3s) have no format.tags — default to {}
+  // so normalizeTag never dereferences undefined.
+  const tags = output.format.tags ?? {};
   const durationSec = parseFloat(output.format.duration);
 
   const audioStream = output.streams.find((s) => s.codec_type === "audio");

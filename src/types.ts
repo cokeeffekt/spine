@@ -2,7 +2,7 @@ export interface FfprobeOutput {
   format: {
     duration: string;
     size: string;
-    tags: Record<string, string | undefined>;
+    tags?: Record<string, string | undefined>;
   };
   streams: Array<{
     codec_type: string;

@@ -88,12 +88,28 @@ describe("walkLibrary", () => {
     }
   });
 
-  test("ignores non-.m4b files", () => {
+  test("ignores non-audio files but still emits the mp3 folder as a book", () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "spine-walk-test-"));
     try {
       fs.writeFileSync(path.join(tmpDir, "cover.jpg"), "");
       fs.writeFileSync(path.join(tmpDir, "metadata.xml"), "");
       fs.writeFileSync(path.join(tmpDir, "book.mp3"), "");
+
+      // A folder with a single .mp3 is a book (kind='mp3folder'); the cover.jpg /
+      // metadata.xml siblings must not produce additional items.
+      const result = walkLibrary(tmpDir);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({ kind: "mp3folder", folderPath: tmpDir });
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  test("folder with only non-audio files yields nothing", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "spine-walk-test-"));
+    try {
+      fs.writeFileSync(path.join(tmpDir, "cover.jpg"), "");
+      fs.writeFileSync(path.join(tmpDir, "metadata.xml"), "");
 
       const result = walkLibrary(tmpDir);
       expect(result).toHaveLength(0);
