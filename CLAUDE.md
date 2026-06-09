@@ -114,13 +114,54 @@ A self-hosted audiobook platform that turns a local folder of .m4b files into a 
 <!-- GSD:conventions-start source:CONVENTIONS.md -->
 ## Conventions
 
-Conventions not yet established. Will populate as patterns emerge during development.
+- **Background jobs:** long-running work (library scan, conversions) uses a module-level
+  lock + an `EventEmitter` + an SSE endpoint. The POST trigger is fire-and-forget and returns
+  immediately (409 if already running); progress is streamed over `GET .../progress`. See
+  `scanner/index.ts` (`scanEmitter`, `runScan`) and `convert/index.ts` (`convertEmitter`,
+  `runConverter`) with `routes/scan.ts` / `routes/convert.ts`.
+- **Incremental scan:** files/folders are skipped when `mtime + size` are unchanged.
+- **Gap-fill enrichment:** external metadata (Audnexus) only fills `NULL`/empty fields — it
+  never overwrites existing values. Admin edits win over everything.
+- **External calls are network-tolerant:** `AbortController` with a short timeout and a
+  graceful `null` return on any failure (`scanner/enrichment.ts`, `convert/audible.ts`).
+- **Config via env:** read through helpers in `src/config.ts`, not `process.env` directly.
+- **ffmpeg/ffprobe** are invoked via `child_process.spawn` (no wrapper libraries).
+- **Pure helpers are unit-tested; I/O is integration-tested.** Tests are colocated as
+  `*.test.ts` and run with `bun test`. Inject `probeFn` / `fetch*Fn` / `detectSilenceFn` to
+  keep network and ffmpeg out of unit tests.
 <!-- GSD:conventions-end -->
 
 <!-- GSD:architecture-start source:ARCHITECTURE.md -->
 ## Architecture
 
-Architecture not yet mapped. Follow existing patterns found in the codebase.
+Hono app on Bun (`src/server.ts`). `/auth/*` is open; `/api/*` is behind `authMiddleware`;
+admin-only routes add `adminOnly`. Static PWA is served from `public/` (no build step).
+SQLite (`bun:sqlite`) lives at `/data/spine.db`; schema is idempotent
+(`CREATE TABLE IF NOT EXISTS` + try/catch `ALTER TABLE` migrations) in `src/db/schema.ts`.
+
+**Data model:** `books` (one row per source *or* converted book, keyed by `file_path`),
+`chapters` (per book; `file_path` set for MP3 tracks, NULL for m4b), `users`, `sessions`,
+`progress`, and `conversion_jobs` (the materialization queue).
+
+**Scanning (`src/scanner/`):** `scanLibrary` walks one or more roots (`LIBRARY_ROOTS`),
+upserts `books` + `chapters`, marks missing items (union across roots), runs Audnexus
+enrichment for ASIN books, then enqueues + kicks the converter. `walk.ts` classifies items
+as `.m4b` files or mp3 folders (handling multi-disc and single-file cases). `probe.ts` wraps
+`ffprobe`; `cover.ts` extracts/downloads cover art to `/data/covers`.
+
+**Materialization (`src/convert/`):** turns every source book into a clean `.m4b` under
+`CONVERT_OUTPUT_DIR` (`/converted`, also a scan root). `index.ts` is the serial worker
+(`enqueueUnmaterialized` + `runConverter` → `processJob`). Per job it resolves metadata
+(`folder-name.ts` parse → `audible.ts` ASIN search → Audnexus), derives chapters
+(`chapters.ts`: embedded → per-file → Audnexus → `silence.ts` → fixed), builds an
+FFMETADATA file (`ffmetadata.ts`), and transcodes/remuxes (`transcode.ts`: AAC for mp3
+folders, lossless `-c:a copy` for m4b). The output is ingested via `scanFile` (dynamic import
+to avoid a static cycle) and the source book is **superseded** — `routes/books.ts` hides any
+`books.file_path` that is a completed `conversion_jobs.source_path`.
+
+**Key flows to know:** `LIBRARY_ROOTS` enables scanning source + converted libraries together;
+`/api/conversions` + its SSE drive the admin Conversions tab; the source library is never
+written to (safe for read-only / seeding mounts).
 <!-- GSD:architecture-end -->
 
 <!-- GSD:workflow-start source:GSD defaults -->
