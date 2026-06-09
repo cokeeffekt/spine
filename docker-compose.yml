@@ -6,9 +6,12 @@ services:
     volumes:
       # Change this to your audiobook directory
       - /home/coke/Downloads/audiobook:/books:ro
+      - /home/coke/Downloads/audiobook-m4b:/converted
       - spine-data:/data
     environment:
-      - LIBRARY_ROOT=/books
+      # Read-only source library + writable converted library (scanned together)
+      - LIBRARY_ROOTS=/books,/converted
+      - CONVERT_OUTPUT_DIR=/converted
       - DB_PATH=/data/spine.db
       - PORT=3000
       # Optional: auto-create an admin user on first run
